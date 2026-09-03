@@ -24,7 +24,7 @@ requirements_storage_overhead_percent: 30
 # «Диск 2 (хранение) необходимо монтировать на директорию /nekta».
 # Устройство задаётся в inventory/host_vars — проверьте lsblk перед запуском.
 storage_volumes:
-  - device: "/dev/sdb"
+  - device: "/dev/sda"
     mountpoint: "/nekta"
     fstype: "ext4"
     opts: "defaults,noatime"

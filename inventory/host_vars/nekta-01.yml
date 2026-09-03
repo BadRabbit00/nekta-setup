@@ -3,7 +3,7 @@
 #   lsblk -o NAME,SIZE,TYPE,FSTYPE,SERIAL,MOUNTPOINT
 #   ls -l /dev/disk/by-id/
 storage_volumes:
-  - device: "/dev/disk/by-id/ata-CHANGE_ME_DATA_DISK"
+  - device: "/dev/disk/by-id/ata-ST4000VX015-3CU104_WW68VM6S"
     mountpoint: "/nekta"
     fstype: "ext4"
     opts: "defaults,noatime"
