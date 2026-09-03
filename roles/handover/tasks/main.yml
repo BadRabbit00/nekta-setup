@@ -1,0 +1,25 @@
+---
+# Пункт 5 «Подготовки к установке»: сведения, которые нужно отправить на
+# support@nekta.tech. Роль только собирает их в один файл на сервере.
+- name: Создать каталог сведений об установке
+  ansible.builtin.file:
+    path: "{{ handover_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Записать сведения для техподдержки Nekta
+  ansible.builtin.template:
+    src: install-info.j2
+    dest: "{{ handover_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Показать, где взять сведения
+  ansible.builtin.debug:
+    msg: >-
+      Сведения для передачи в техподдержку собраны в {{ handover_file }}.
+      Остальное (логин и пароль SSH, настройки исходящей почты, материалы
+      персонального дизайна) — см. docs/05-handover.md

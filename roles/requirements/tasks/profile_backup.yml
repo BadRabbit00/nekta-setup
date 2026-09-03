@@ -1,0 +1,94 @@
+---
+- name: Собрать сведения о массиве RAID
+  ansible.builtin.slurp:
+    src: /proc/mdstat
+  register: requirements_mdstat
+  failed_when: false
+
+- name: Определить суммарный объём дисков защищаемых серверов
+  ansible.builtin.set_fact:
+    requirements_protected_gb: >-
+      {{ requirements_backup_protected_gb if requirements_backup_protected_gb | string | length > 0
+         else (groups['nekta'] | default([])
+               | map('extract', hostvars, 'requirements_protected_own_gb')
+               | select('defined') | map('float') | sum | round(1)) }}
+
+- name: Составить список проверок
+  ansible.builtin.set_fact:
+    requirements_checks:
+      - name: "ОС Ubuntu Server 20.04 или новее"
+        actual: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+        required: "Ubuntu >= 20.04"
+        ok: >-
+          {{ ansible_facts.os_family == 'Debian'
+             and (ansible_facts.distribution != 'Ubuntu'
+                  or ansible_facts.distribution_version is version('20.04', '>=')) }}
+        severity: hard
+
+      - name: "Ядра процессора"
+        actual: "{{ requirements_cpu_cores_actual }}"
+        required: "{{ requirements_backup_cpu_cores }}"
+        ok: "{{ requirements_cpu_cores_actual | int >= requirements_backup_cpu_cores | int }}"
+        severity: hard
+
+      - name: "Потоки процессора"
+        actual: "{{ ansible_facts.processor_vcpus }}"
+        required: "{{ requirements_backup_cpu_threads }}"
+        ok: "{{ ansible_facts.processor_vcpus | int >= requirements_backup_cpu_threads | int }}"
+        severity: hard
+
+      - name: "Оперативная память, ГБ"
+        actual: "{{ (ansible_facts.memtotal_mb | int / 1024) | round(1) }}"
+        required: "{{ requirements_backup_ram_gb }}"
+        ok: "{{ ansible_facts.memtotal_mb | int >= (requirements_backup_ram_gb | int * 1024 * 0.94) }}"
+        severity: hard
+
+      - name: "Диск 1 (система): объём, ГБ"
+        actual: "{{ requirements_root_gb }}"
+        required: "{{ requirements_backup_system_disk_gb }}"
+        ok: "{{ requirements_root_gb | float >= (requirements_backup_system_disk_gb | int * 0.93) }}"
+        severity: hard
+
+      - name: "Диск 1 (система): тип носителя"
+        actual: "{{ 'SSD' if requirements_root_is_ssd | bool else 'HDD' }}"
+        required: "SSD"
+        ok: "{{ requirements_root_is_ssd | bool }}"
+        severity: soft
+
+      - name: "Диск 2 (хранение): массив RAID1"
+        actual: "{{ 'raid1 найден' if 'raid1' in mdstat else 'массива raid1 нет' }}"
+        required: "RAID1 из 2 x HDD"
+        ok: "{{ 'raid1' in mdstat }}"
+        severity: hard
+
+      - name: "Хранилище копий смонтировано в {{ requirements_backup_mount }}"
+        actual: "{{ requirements_data_mount.device | default('не смонтировано') }}"
+        required: "отдельный том"
+        ok: >-
+          {{ requirements_data_mount.device is defined
+             and requirements_data_mount.device != (requirements_root_mount.device | default('')) }}
+        severity: hard
+
+      - name: "Объём хранилища копий, ГБ"
+        actual: "{{ requirements_data_total_gb }}"
+        required: >-
+          {{ (requirements_protected_gb | float * requirements_backup_size_factor | int) | round(1)
+             if requirements_protected_gb | float > 0
+             else 'x' ~ requirements_backup_size_factor ~ ' от объёма дисков защищаемых серверов' }}
+        # Объём защищаемых серверов известен, только если они опрошены в этом
+        # же запуске; иначе проверка носит справочный характер.
+        ok: >-
+          {{ requirements_protected_gb | float == 0
+             or requirements_data_total_gb | float
+                >= (requirements_protected_gb | float * requirements_backup_size_factor | int) }}
+        known: "{{ requirements_protected_gb | float > 0 }}"
+        severity: soft
+
+      - name: "Сеть, Мбит/с"
+        actual: "{{ requirements_link_mbits if requirements_link_mbits | int > 0 else 'определить не удалось' }}"
+        required: "{{ requirements_backup_net_mbits }}"
+        ok: "{{ requirements_link_mbits | int == 0 or requirements_link_mbits | int >= requirements_backup_net_mbits | int }}"
+        known: "{{ requirements_link_mbits | int > 0 }}"
+        severity: soft
+  vars:
+    mdstat: "{{ requirements_mdstat.content | default('') | b64decode }}"

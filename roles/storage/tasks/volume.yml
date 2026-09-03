@@ -46,10 +46,12 @@
   changed_when: false
   failed_when: false
 
-- name: "Уменьшить зарезервированную для root долю на {{ vol.device }}"
+- name: "Задать долю блоков, зарезервированную для root, на {{ vol.device }}"
   ansible.builtin.command:
     cmd: "tune2fs -m {{ storage_reserved_blocks_percentage }} {{ vol.device }}"
-  when: vol.fstype.startswith('ext')
+  when:
+    - vol.fstype.startswith('ext')
+    - storage_reserved_blocks_percentage | string | length > 0
   changed_when: false
 
 - name: "Создать точку монтирования {{ vol.mountpoint }}"

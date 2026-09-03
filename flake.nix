@@ -38,15 +38,10 @@
             (play "nk-backup" "playbooks/backup.yml")
             (play "nk-ups" "playbooks/ups.yml")
             (play "nk-bootstrap" "playbooks/bootstrap.yml")
-            (play "nk-backup-run" "playbooks/backup-run.yml")
             (play "nk-ups-test" "playbooks/ups-test.yml")
 
             (mk "nk-check" ''
               exec ansible-playbook playbooks/site.yml --check --diff "$@"
-            '')
-
-            (mk "nk-status" ''
-              exec ansible backup --become --args /usr/local/sbin/nekta-backup-status "$@"
             '')
 
             (mk "nk-facts" ''
@@ -56,16 +51,14 @@
 
             (pkgs.writeShellApplication {
               name = "nk-lint";
-              runtimeInputs = with pkgs; [ ansible-lint yamllint shellcheck bash ];
+              runtimeInputs = with pkgs; [ ansible-lint yamllint bash ];
               text = ''
                 set -e
                 echo "== yamllint";     yamllint .
                 echo "== ansible-lint"; ansible-lint
-                echo "== shellcheck";   shellcheck roles/backup_server/files/* roles/firewall/files/*
                 echo "== скрипты-шаблоны"
                 for f in roles/nut/templates/upssched-cmd.j2 \
-                         roles/nut/templates/nekta-ups-shutdown.j2 \
-                         roles/nekta_prep/templates/nekta-predump.j2; do
+                         roles/nut/templates/nekta-ups-shutdown.j2; do
                   sed 's/{%[^%]*%}//g; s/{{[^}]*}}/X/g' "$f" | bash -n -
                   echo "  OK $f"
                 done
@@ -106,14 +99,12 @@
                     nk-check         прогон site.yml в режиме --check --diff
 
                   Настройка
-                    nk-site          оба сервера целиком
+                    nk-site          подготовить оба сервера
                     nk-nekta         только сервер приложения
                     nk-backup        только сервер резервного копирования
-                    nk-ups           ИБП на обоих серверах
+                    nk-ups           ИБП (после установки Nekta вендором)
 
                   Эксплуатация
-                    nk-backup-run    снять резервную копию сейчас
-                    nk-status        свежесть копий и свободное место
                     nk-ups-test      состояние ИБП
                     nk-facts         характеристики серверов
 

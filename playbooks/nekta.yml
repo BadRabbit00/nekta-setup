@@ -1,37 +1,22 @@
 ---
+# Подготовка сервера приложения по документации Nekta:
+#   - проверка системных требований и исходящего доступа
+#   - монтирование диска 2 в /nekta
+#   - открытие портов
+#   - сбор сведений для передачи в техподдержку
+#
+# Установку самого Nekta Server выполняет вендор по SSH.
 - name: Подготовка сервера приложения Nekta Server
   hosts: nekta
   become: true
   gather_facts: true
 
-  pre_tasks:
-    - name: Забрать публичный ключ сервера резервного копирования
-      ansible.builtin.set_fact:
-        nekta_backup_pubkeys: >-
-          {{ groups['backup'] | default([])
-             | map('extract', hostvars, 'backup_ssh_pubkey')
-             | select('string') | list }}
-        nekta_backup_allowed_from: >-
-          {{ groups['backup'] | default([])
-             | map('extract', hostvars, 'ansible_host')
-             | select('string') | list }}
-      tags: [always]
-
   roles:
-    - role: common
-      tags: [common]
+    - role: requirements
+      tags: [requirements, preflight]
     - role: storage
       tags: [storage]
     - role: firewall
       tags: [firewall]
-    - role: nekta_prep
-      tags: [nekta]
-
-  post_tasks:
-    - name: Показать сводку по подготовке
-      ansible.builtin.debug:
-        msg: >-
-          Сервер подготовлен. Дальше данные для техподдержки Nekta
-          (support@nekta.tech) собраны в /etc/nekta/install-info.
-          Установку самого Nekta Server выполняет вендор по SSH —
-          порядок передачи описан в docs/06-handover.md.
+    - role: handover
+      tags: [handover]

@@ -1,0 +1,43 @@
+---
+# Профиль проверки: nekta (сервер приложения) или backup (сервер копий).
+requirements_profile: "nekta"
+
+# false — несоответствия выводятся предупреждениями, выполнение продолжается.
+requirements_strict: true
+
+# --- Профиль «до 10 000 устройств» (системные требования Nekta) -----------
+requirements_nekta_cpu_cores: 4
+requirements_nekta_cpu_threads: 8
+requirements_nekta_cpu_mhz: 2000
+requirements_nekta_ram_gb: 20
+requirements_nekta_system_disk_gb: 120
+requirements_nekta_net_mbits: 100
+
+# Расчёт объёма диска хранения по методике вендора:
+#   устройства x сообщений в сутки x 2 КБ x 365 x лет x (1 + запас)
+requirements_devices: 10000
+requirements_msg_size_kb: 2
+requirements_msgs_per_device_per_day: 2
+requirements_retention_years: 3
+requirements_storage_overhead_percent: 30
+
+requirements_data_dir: "/nekta"
+
+# --- Профиль сервера резервного копирования -------------------------------
+requirements_backup_cpu_cores: 4
+requirements_backup_cpu_threads: 8
+requirements_backup_ram_gb: 8
+requirements_backup_system_disk_gb: 120
+requirements_backup_net_mbits: 1000
+# Объём хранилища копий должен превышать объём дисков защищаемых серверов
+# в это число раз.
+requirements_backup_size_factor: 3
+# Суммарный объём дисков защищаемых серверов, ГБ. Пусто — берётся из фактов
+# хостов группы nekta, если они собраны в этом же запуске.
+requirements_backup_protected_gb: ""
+requirements_backup_mount: "/backup"
+
+# --- Внешние ресурсы, к которым нужен исходящий доступ --------------------
+requirements_check_outbound: true
+requirements_outbound_timeout: 5
+requirements_outbound_endpoints: []

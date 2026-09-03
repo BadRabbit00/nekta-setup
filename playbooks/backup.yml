@@ -1,22 +1,19 @@
 ---
-- name: Настройка сервера резервного копирования
+# Подготовка сервера резервного копирования по документации Nekta:
+#   - проверка системных требований
+#   - RAID1 из двух HDD и его монтирование
+#
+# Программное обеспечение резервного копирования документацией не описано
+# и здесь не настраивается — см. docs/00-scope.md
+- name: Подготовка сервера резервного копирования
   hosts: backup
   become: true
   gather_facts: true
 
   roles:
-    - role: common
-      tags: [common]
+    - role: requirements
+      tags: [requirements, preflight]
     - role: storage
       tags: [storage]
     - role: firewall
       tags: [firewall]
-    - role: backup_server
-      tags: [backup]
-
-  post_tasks:
-    - name: Показать публичный ключ доступа к защищаемым серверам
-      ansible.builtin.debug:
-        msg: >-
-          Публичный ключ сервера резервного копирования:
-          {{ backup_ssh_pubkey | default('не сгенерирован') }}

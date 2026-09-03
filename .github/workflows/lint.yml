@@ -34,21 +34,15 @@ jobs:
             ansible-playbook --syntax-check "$pb"
           done
 
-  shellcheck:
+  scripts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: shellcheck
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y shellcheck
-          shellcheck roles/backup_server/files/* roles/firewall/files/*
-
-      - name: Синтаксис скриптов-шаблонов
+      - name: Синтаксис скриптов ИБП
         run: |
           for f in roles/nut/templates/upssched-cmd.j2 \
-                   roles/nut/templates/nekta-ups-shutdown.j2 \
-                   roles/nekta_prep/templates/nekta-predump.j2; do
+                   roles/nut/templates/nekta-ups-shutdown.j2; do
             echo "== $f"
             sed 's/{%[^%]*%}//g; s/{{[^}]*}}/X/g' "$f" | bash -n -
           done

@@ -3,13 +3,3 @@
   community.general.ufw:
     state: reloaded
   failed_when: false
-
-- name: Reload systemd daemon
-  ansible.builtin.systemd:
-    daemon_reload: true
-
-- name: Apply docker user firewall
-  ansible.builtin.command:
-    cmd: /usr/local/sbin/nekta-docker-firewall apply
-  changed_when: true
-  failed_when: false

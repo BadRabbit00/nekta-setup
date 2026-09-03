@@ -12,6 +12,8 @@ storage_raid_monitor_mail: "root"
 #   ansible-playbook ... -e storage_force_format=true
 storage_force_format: false
 
-# Резерв суперпользователя на томах данных: 5% от многотерабайтного HDD —
-# это десятки гигабайт впустую.
-storage_reserved_blocks_percentage: 1
+# Резерв суперпользователя в ext4. Пусто — оставить умолчание системы (5%).
+# В документации Nekta про это ничего нет, поэтому по умолчанию не трогаем;
+# на многотерабайтном диске 5% — это десятки гигабайт, и значение 1 их
+# возвращает.
+storage_reserved_blocks_percentage: ""

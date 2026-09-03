@@ -1,0 +1,31 @@
+# {{ ansible_managed }}
+# Сведения для техподдержки Nekta (support@nekta.tech).
+# Логин и пароль SSH здесь намеренно не хранятся — передайте их отдельно.
+
+Хост:                  {{ inventory_hostname }}
+Адрес:                 {{ ansible_host | default(ansible_facts.default_ipv4.address | default('n/a')) }}
+Порт SSH:              {{ ansible_port | default(22) }}
+ОС:                    {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+Ядро:                  {{ ansible_facts.kernel }}
+Процессор:             {{ ansible_facts.processor_cores * ansible_facts.processor_count }} ядер / {{ ansible_facts.processor_vcpus }} потоков
+Оперативная память:    {{ (ansible_facts.memtotal_mb / 1024) | round(1) }} ГБ
+Диск 1 (система):      {{ requirements_root_gb | default('n/a') }} ГБ
+Диск 2 (хранение):     {{ requirements_data_total_gb | default('n/a') }} ГБ, смонтирован в {{ requirements_data_dir | default('/nekta') }}
+
+{% if handover_public_url | length > 0 %}
+URL веб-интерфейса:    {{ handover_public_url }}
+{% endif %}
+{% if handover_admin_email | length > 0 %}
+E-mail администратора: {{ handover_admin_email }}
+{% endif %}
+{% if handover_retention_years | string | length > 0 %}
+Глубина хранения:      {{ handover_retention_years }} г.
+{% endif %}
+
+Расчёт объёма диска хранения:
+  устройств:           {{ requirements_devices | default('n/a') }}
+  сообщений в сутки:   {{ requirements_msgs_per_device_per_day | default('n/a') }} на прибор
+  глубина хранения:    {{ requirements_retention_years | default('n/a') }} г.
+  расчётный объём:     {{ requirements_storage_gb | default('n/a') }} ГБ (с запасом {{ requirements_storage_overhead_percent | default(30) }}%)
+
+Подготовлено:          {{ ansible_date_time.iso8601 | default('n/a') }}

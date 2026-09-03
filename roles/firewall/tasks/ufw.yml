@@ -17,7 +17,7 @@
 - name: Разрешить SSH из сетей управления
   community.general.ufw:
     rule: allow
-    port: "{{ common_ssh_port | default(22) }}"
+    port: "{{ site_ssh_port | default(22) }}"
     proto: tcp
     from_ip: "{{ item }}"
     comment: "SSH из сети управления"
@@ -27,7 +27,7 @@
 - name: Разрешить SSH отовсюду
   community.general.ufw:
     rule: allow
-    port: "{{ common_ssh_port | default(22) }}"
+    port: "{{ site_ssh_port | default(22) }}"
     proto: tcp
     comment: "SSH (установка и обновление Nekta выполняются через интернет)"
   when: not (firewall_restrict_ssh_to_management | bool)
@@ -50,21 +50,6 @@
     from_ip: "{{ item.1 }}"
     comment: "{{ item.0.comment | default('') }}"
   loop: "{{ firewall_support_only_rules | product(nekta_support_ips) | list }}"
-  loop_control:
-    label: "{{ item.0.port }}/{{ item.0.proto }} from {{ item.1 }}"
-
-- name: Открыть порты для сервера резервного копирования
-  community.general.ufw:
-    rule: allow
-    port: "{{ item.0.port | string }}"
-    proto: "{{ item.0.proto }}"
-    from_ip: "{{ item.1 }}"
-    comment: "{{ item.0.comment | default('') }}"
-  loop: >-
-    {{ firewall_allow_from_backup
-       | product(groups['backup'] | default([])
-                 | map('extract', hostvars, 'ansible_host') | list)
-       | list }}
   loop_control:
     label: "{{ item.0.port }}/{{ item.0.proto }} from {{ item.1 }}"
 

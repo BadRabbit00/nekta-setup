@@ -59,8 +59,12 @@ nut_final_delay: 5
 nut_graceful_docker_stop: true
 nut_docker_stop_timeout: 90
 
-nut_notify_mail_enabled: "{{ common_mail_enabled | default(false) }}"
-nut_notify_mail_to: "{{ common_mail_to | default('root') }}"
+# Уведомления по почте выключены: плейбуки не устанавливают почтовый агент,
+# чтобы не нарушать требование «чистой» ОС. События ИБП пишутся в системный
+# журнал (journalctl -t nekta-ups) и рассылаются на терминалы (wall).
+# Включайте, только если MTA на сервере уже настроен.
+nut_notify_mail_enabled: false
+nut_notify_mail_to: "root"
 
 # Открыть 3493/tcp для клиентов, если на хосте включён ufw.
 nut_manage_firewall: true

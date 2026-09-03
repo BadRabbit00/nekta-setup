@@ -5,32 +5,21 @@ firewall_default_outgoing: "allow"
 firewall_default_routed: "deny"
 firewall_logging: "low"
 
-# Правила, открытые для всех источников.
+# Порты, открытые для всех источников (список в inventory/group_vars).
 firewall_rules: []
 
-# Правила только для адресов техподдержки Nekta.
+# Порты, открытые только адресам техподдержки Nekta.
 firewall_support_only_rules: []
 nekta_support_ips: []
 
-# Правила, открытые только серверу резервного копирования.
-firewall_allow_from_backup: []
-
-# Дополнительные правила произвольного вида:
+# Дополнительные правила:
 #   - { port: 3493, proto: tcp, from: "192.0.2.0/24", comment: "NUT" }
 firewall_extra_rules: []
 
-# Сети управления: SSH всегда доступен оттуда, даже если правило порта
-# ограничено. Пустой список — ограничение по источнику не применяется.
-site_management_networks: []
+# Ограничить SSH сетями управления. По умолчанию выключено: вендор
+# подключается из интернета, установка и обновление через VPN не выполняются.
 firewall_restrict_ssh_to_management: false
+site_management_networks: []
 
-# --- Docker ---------------------------------------------------------------
-# Docker публикует порты через собственные цепочки iptables и обходит ufw:
-# опубликованный контейнером порт остаётся доступным снаружи, даже если ufw
-# его «закрыл». Здесь мы заранее готовим правила в цепочке DOCKER-USER,
-# которые применяются автоматически, когда вендор установит docker.
-firewall_docker_user_enabled: true
-# false — порты контейнеров доступны отовсюду (штатный режим Nekta Server).
-# true  — доступ к опубликованным портам только из firewall_docker_allowed_sources.
-firewall_restrict_docker_ports: false
-firewall_docker_allowed_sources: []
+# Порт SSH. Документация допускает переназначение на другой внешний порт.
+site_ssh_port: 22

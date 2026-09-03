@@ -1,0 +1,93 @@
+---
+- name: Рассчитать требуемый объём диска хранения
+  ansible.builtin.set_fact:
+    requirements_storage_gb: >-
+      {{ ((requirements_devices | int
+           * requirements_msgs_per_device_per_day | float
+           * requirements_msg_size_kb | int
+           * 365
+           * requirements_retention_years | float
+           * (1 + requirements_storage_overhead_percent | int / 100))
+          / 1048576) | round(1) }}
+
+- name: Составить список проверок
+  ansible.builtin.set_fact:
+    requirements_checks:
+      - name: "ОС Ubuntu Server 20.04 или новее"
+        actual: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+        required: "Ubuntu >= 20.04 / Astra >= 2.12.45 / Red Star >= 4.0"
+        ok: >-
+          {{ ansible_facts.os_family == 'Debian'
+             and (ansible_facts.distribution != 'Ubuntu'
+                  or ansible_facts.distribution_version is version('20.04', '>=')) }}
+        severity: hard
+
+      - name: "Ядра процессора"
+        actual: "{{ requirements_cpu_cores_actual }}"
+        required: "{{ requirements_nekta_cpu_cores }}"
+        ok: "{{ requirements_cpu_cores_actual | int >= requirements_nekta_cpu_cores | int }}"
+        severity: hard
+
+      - name: "Потоки процессора"
+        actual: "{{ ansible_facts.processor_vcpus }}"
+        required: "{{ requirements_nekta_cpu_threads }}"
+        ok: "{{ ansible_facts.processor_vcpus | int >= requirements_nekta_cpu_threads | int }}"
+        severity: hard
+
+      - name: "Частота процессора, МГц"
+        actual: "{{ requirements_cpu_mhz_actual if requirements_cpu_mhz_actual | int > 0 else 'определить не удалось' }}"
+        required: "{{ requirements_nekta_cpu_mhz }}"
+        # Частота читается из sysfs и доступна не на всех платформах,
+        # поэтому несоответствие только предупреждает.
+        ok: "{{ requirements_cpu_mhz_actual | int == 0 or requirements_cpu_mhz_actual | int >= requirements_nekta_cpu_mhz | int }}"
+        known: "{{ requirements_cpu_mhz_actual | int > 0 }}"
+        severity: soft
+
+      - name: "Оперативная память, ГБ"
+        actual: "{{ (ansible_facts.memtotal_mb | int / 1024) | round(1) }}"
+        required: "{{ requirements_nekta_ram_gb }}"
+        # Часть ОЗУ забирают BIOS и встроенная графика — допуск 6%.
+        ok: "{{ ansible_facts.memtotal_mb | int >= (requirements_nekta_ram_gb | int * 1024 * 0.94) }}"
+        severity: hard
+
+      - name: "Диск 1 (система): объём, ГБ"
+        actual: "{{ requirements_root_gb }}"
+        required: "{{ requirements_nekta_system_disk_gb }}"
+        ok: "{{ requirements_root_gb | float >= (requirements_nekta_system_disk_gb | int * 0.93) }}"
+        severity: hard
+
+      - name: "Диск 1 (система): тип носителя"
+        actual: "{{ 'SSD' if requirements_root_is_ssd | bool else 'HDD' }}"
+        required: "SSD"
+        ok: "{{ requirements_root_is_ssd | bool }}"
+        severity: soft
+
+      - name: "Диск 2 (хранение) смонтирован в {{ requirements_data_dir }}"
+        actual: "{{ requirements_data_mount.device | default('не смонтирован') }}"
+        required: "отдельный том"
+        ok: >-
+          {{ requirements_data_mount.device is defined
+             and requirements_data_mount.device != (requirements_root_mount.device | default('')) }}
+        severity: hard
+
+      - name: "Диск 2 (хранение): объём, ГБ"
+        actual: "{{ requirements_data_total_gb }}"
+        required: "{{ requirements_storage_gb }}"
+        ok: "{{ requirements_data_total_gb | float >= requirements_storage_gb | float }}"
+        severity: hard
+
+      - name: "Сеть, Мбит/с"
+        actual: "{{ requirements_link_mbits if requirements_link_mbits | int > 0 else 'определить не удалось' }}"
+        required: "{{ requirements_nekta_net_mbits }}"
+        ok: "{{ requirements_link_mbits | int == 0 or requirements_link_mbits | int >= requirements_nekta_net_mbits | int }}"
+        known: "{{ requirements_link_mbits | int > 0 }}"
+        severity: soft
+
+      - name: "Статический IP-адрес"
+        actual: >-
+          {{ 'адрес получается по DHCP' if requirements_uses_dhcp | bool
+             else ('статический' if requirements_netplan_used | bool else 'netplan не используется') }}
+        required: "статический"
+        ok: "{{ not (requirements_uses_dhcp | bool) }}"
+        known: "{{ requirements_netplan_used | bool }}"
+        severity: soft

@@ -1,0 +1,27 @@
+---
+# Проверка сервера на соответствие системным требованиям Nekta.
+# Роль ничего не меняет: только собирает факты, сравнивает с требованиями
+# и печатает отчёт.
+
+- name: Собрать сведения о дисках и сети
+  ansible.builtin.import_tasks: gather.yml
+  tags: [requirements]
+
+- name: Построить список проверок для сервера приложения
+  ansible.builtin.import_tasks: profile_nekta.yml
+  when: requirements_profile == "nekta"
+  tags: [requirements]
+
+- name: Построить список проверок для сервера резервного копирования
+  ansible.builtin.import_tasks: profile_backup.yml
+  when: requirements_profile == "backup"
+  tags: [requirements]
+
+- name: Проверить доступность внешних ресурсов Nekta
+  ansible.builtin.import_tasks: outbound.yml
+  when: requirements_check_outbound | bool and requirements_outbound_endpoints | length > 0
+  tags: [requirements]
+
+- name: Показать отчёт
+  ansible.builtin.import_tasks: report.yml
+  tags: [requirements]

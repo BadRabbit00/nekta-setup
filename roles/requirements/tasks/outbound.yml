@@ -1,0 +1,24 @@
+---
+# Без этих ресурсов вендор не сможет ни установить, ни обновить Nekta Server.
+- name: Проверить доступность внешних ресурсов
+  ansible.builtin.wait_for:
+    host: "{{ item.host }}"
+    port: "{{ item.port }}"
+    timeout: "{{ requirements_outbound_timeout }}"
+    state: started
+  loop: "{{ requirements_outbound_endpoints }}"
+  loop_control:
+    label: "{{ item.host }}:{{ item.port }}"
+  register: requirements_outbound_result
+  changed_when: false
+  failed_when: false
+
+- name: Показать недоступные ресурсы
+  ansible.builtin.debug:
+    msg: >-
+      [ НЕТ ДОСТУПА ] {{ item.item.host }}:{{ item.item.port }} —
+      откройте исходящий доступ, иначе установка и обновление не выполнятся
+  loop: "{{ requirements_outbound_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.host | default('') }}"
+  when: item.failed | default(false) or (item.state | default('')) != 'started'

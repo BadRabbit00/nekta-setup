@@ -1,5 +1,6 @@
 ---
-# Реальные устройства под RAID1 — проверьте `lsblk -o NAME,SIZE,SERIAL` перед запуском.
+# Реальные диски под RAID1 — проверьте перед запуском:
+#   lsblk -o NAME,SIZE,TYPE,SERIAL
 storage_raid_arrays:
   - name: "/dev/md0"
     level: 1
@@ -7,12 +8,16 @@ storage_raid_arrays:
       - "/dev/disk/by-id/ata-CHANGE_ME_HDD_1"
       - "/dev/disk/by-id/ata-CHANGE_ME_HDD_2"
 
-# Хосты, с которых забираются резервные копии.
-backup_sources:
-  - name: "nekta-01"
-    host: "{{ hostvars['nekta-01'].ansible_host }}"
-    port: "{{ hostvars['nekta-01'].ansible_port | default(22) }}"
-    user: "{{ hostvars['nekta-01'].nekta_backup_user | default('nekta-backup') }}"
-    paths: "{{ hostvars['nekta-01'].nekta_backup_paths }}"
-    exclude: "{{ hostvars['nekta-01'].nekta_backup_exclude }}"
-    predump: "{{ hostvars['nekta-01'].nekta_predump_enabled | default(true) }}"
+storage_volumes:
+  - device: "/dev/md0"
+    mountpoint: "/backup"
+    fstype: "ext4"
+    opts: "defaults,noatime"
+    mode: "0750"
+    label: "nekta-backup"
+
+# Суммарный объём дисков защищаемых серверов, ГБ — для проверки правила
+# «объём хранилища копий не менее трёхкратного». Оставьте пустым, если
+# сервер приложения опрашивается в том же запуске: значение возьмётся из
+# его фактов.
+requirements_backup_protected_gb: ""

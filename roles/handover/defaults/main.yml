@@ -1,0 +1,9 @@
+---
+# Каталог и файл со сведениями, которые передаются в техподдержку Nekta.
+handover_dir: "/etc/nekta"
+handover_file: "/etc/nekta/install-info"
+
+# Данные из пункта 5 «Подготовки к установке». Заполняются в host_vars.
+handover_public_url: ""
+handover_admin_email: ""
+handover_retention_years: ""

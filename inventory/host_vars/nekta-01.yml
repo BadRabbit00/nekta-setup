@@ -1,26 +1,24 @@
 ---
-# Параметры конкретного сервера Nekta.
-# URL, по которому будет доступен web-интерфейс (сообщается в поддержку Nekta).
-nekta_public_url: "https://nekta.example.org"
-nekta_admin_email: "admin@example.org"
-
-# Реальные блочные устройства этого сервера — проверьте `lsblk` перед запуском.
+# Реальные устройства этого сервера — проверьте перед запуском:
+#   lsblk -o NAME,SIZE,TYPE,FSTYPE,SERIAL,MOUNTPOINT
+#   ls -l /dev/disk/by-id/
 storage_volumes:
   - device: "/dev/disk/by-id/ata-CHANGE_ME_DATA_DISK"
     mountpoint: "/nekta"
     fstype: "ext4"
     opts: "defaults,noatime"
-    owner: "root"
-    group: "root"
-    mode: "0755"
     label: "nekta-data"
 
-# Профиль обмена: усредните по типам приборов учёта.
-# Пример для электросчётчиков — 97 сообщений в сутки.
-nekta_msgs_per_device_per_day: 2
-nekta_retention_years: 3
+# Профиль обмена: усредните по парку приборов учёта.
+requirements_msgs_per_device_per_day: 2
+requirements_retention_years: 3
 
-# Параметры ИБП (кабель USB подключён к этому серверу).
-nut_ups_description: "APC Smart-UPS, машзал"
+# Сведения для передачи в техподдержку Nekta (пункт 5 «Подготовки к установке»).
+handover_public_url: "https://nekta.example.org"
+handover_admin_email: "admin@example.org"
+handover_retention_years: 3
+
+# ИБП: кабель USB подключён к этому серверу.
+nut_ups_description: "ИБП в машзале"
 nut_ups_driver: "usbhid-ups"
 nut_ups_port: "auto"

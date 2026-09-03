@@ -1,22 +1,15 @@
 ---
-- name: Установить ufw
-  ansible.builtin.apt:
-    name: ufw
-    state: present
-  tags: [firewall, packages]
-
+# Пункт 3 «Подготовки к установке»: открыть порты Nekta Server.
+#
+# Если фильтрация выполняется на внешнем межсетевом экране площадки,
+# поставьте firewall_enabled: false — тогда роль не трогает ufw.
 - name: Настроить правила ufw
   ansible.builtin.import_tasks: ufw.yml
   when: firewall_enabled | bool
   tags: [firewall]
 
-- name: Выключить ufw, если так задано в инвентаре
-  community.general.ufw:
-    state: disabled
+- name: Не управлять межсетевым экраном
+  ansible.builtin.debug:
+    msg: "firewall_enabled=false — ufw не настраивается, порты открываются вне сервера"
   when: not (firewall_enabled | bool)
   tags: [firewall]
-
-- name: Подготовить правила цепочки DOCKER-USER
-  ansible.builtin.import_tasks: docker_user.yml
-  when: firewall_docker_user_enabled | bool
-  tags: [firewall, docker]

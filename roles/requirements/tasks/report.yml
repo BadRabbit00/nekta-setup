@@ -1,0 +1,29 @@
+---
+- name: Показать результаты проверки
+  ansible.builtin.debug:
+    msg: >-
+      {{ '[ НЕ ОПРЕДЕЛЕНО ]' if not (item.known | default(true) | bool)
+         else ('[ OK ]' if item.ok | bool
+               else ('[ НЕ СООТВЕТСТВУЕТ ]' if item.severity == 'hard' else '[ ВНИМАНИЕ ]')) }}
+      {{ item.name }}: фактически {{ item.actual }}, требуется {{ item.required }}
+  loop: "{{ requirements_checks }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Сохранить собственный объём дисков для расчётов на сервере копий
+  ansible.builtin.set_fact:
+    requirements_protected_own_gb: "{{ (requirements_root_gb | float + requirements_data_total_gb | float) | round(1) }}"
+    cacheable: true
+  when: requirements_profile == "nekta"
+
+- name: Прервать выполнение при несоответствии требованиям
+  ansible.builtin.assert:
+    that:
+      - requirements_checks | rejectattr('ok') | selectattr('severity', 'equalto', 'hard') | list | length == 0
+    fail_msg: >-
+      Сервер не соответствует системным требованиям Nekta:
+      {{ requirements_checks | rejectattr('ok') | selectattr('severity', 'equalto', 'hard')
+         | map(attribute='name') | join('; ') }}.
+      Если расхождение осознанное, запустите с -e requirements_strict=false
+    success_msg: "Обязательные требования выполнены"
+  when: requirements_strict | bool

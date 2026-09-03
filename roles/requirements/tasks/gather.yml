@@ -1,0 +1,77 @@
+---
+- name: Определить устройство корневой файловой системы
+  ansible.builtin.set_fact:
+    requirements_root_mount: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first | default({}) }}"
+    requirements_data_mount: >-
+      {{ ansible_facts.mounts
+         | selectattr('mount', 'equalto', requirements_target_mount)
+         | first | default({}) }}
+  vars:
+    requirements_target_mount: "{{ requirements_data_dir if requirements_profile == 'nekta' else requirements_backup_mount }}"
+
+# lsblk понимает и разделы, и массивы md, и тома LVM, поэтому тип носителя
+# определяется одинаково в любой разметке.
+- name: Определить тип носителя системного диска
+  ansible.builtin.command:
+    cmd: "lsblk --nodeps --noheadings --output ROTA {{ requirements_root_mount.device | default('') }}"
+  register: requirements_root_rota
+  changed_when: false
+  failed_when: false
+  when: requirements_root_mount.device is defined
+
+- name: Определить тип носителя диска данных
+  ansible.builtin.command:
+    cmd: "lsblk --nodeps --noheadings --output ROTA {{ requirements_data_mount.device | default('') }}"
+  register: requirements_data_rota
+  changed_when: false
+  failed_when: false
+  when: requirements_data_mount.device is defined
+
+- name: Определить скорость сетевого интерфейса
+  ansible.builtin.slurp:
+    src: "/sys/class/net/{{ ansible_facts.default_ipv4.interface }}/speed"
+  register: requirements_link_speed_raw
+  failed_when: false
+  when: ansible_facts.default_ipv4.interface is defined
+
+- name: Определить максимальную частоту процессора
+  ansible.builtin.slurp:
+    src: /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq
+  register: requirements_cpu_freq_raw
+  failed_when: false
+
+# Вендор требует статический адрес: смена адреса по DHCP разрывает доступ
+# техподдержки и ломает A-запись домена веб-интерфейса.
+- name: Найти конфигурации netplan
+  ansible.builtin.find:
+    paths: /etc/netplan
+    patterns: ["*.yaml", "*.yml"]
+  register: requirements_netplan
+  failed_when: false
+
+- name: Проверить, не получает ли адрес по DHCP
+  ansible.builtin.find:
+    paths: /etc/netplan
+    patterns: ["*.yaml", "*.yml"]
+    contains: '^\s*dhcp4:\s*(true|yes)'
+  register: requirements_dhcp
+  failed_when: false
+
+- name: Свести собранные значения
+  ansible.builtin.set_fact:
+    requirements_root_is_ssd: "{{ (requirements_root_rota.stdout | default('1') | trim) == '0' }}"
+    requirements_data_is_hdd: "{{ (requirements_data_rota.stdout | default('0') | trim) == '1' }}"
+    requirements_root_gb: "{{ (requirements_root_mount.size_total | default(0) | int / 1073741824) | round(1) }}"
+    requirements_data_total_gb: "{{ (requirements_data_mount.size_total | default(0) | int / 1073741824) | round(1) }}"
+    requirements_data_free_gb: "{{ (requirements_data_mount.size_available | default(0) | int / 1073741824) | round(1) }}"
+    requirements_link_mbits: >-
+      {{ (requirements_link_speed_raw.content | default('') | b64decode | trim | int)
+         if (requirements_link_speed_raw.content is defined) else 0 }}
+    requirements_cpu_mhz_actual: >-
+      {{ ((requirements_cpu_freq_raw.content | b64decode | trim | int) / 1000) | round | int
+         if (requirements_cpu_freq_raw.content is defined) else 0 }}
+    requirements_cpu_cores_actual: "{{ ansible_facts.processor_cores | int * ansible_facts.processor_count | int }}"
+    requirements_uses_dhcp: "{{ (requirements_dhcp.files | default([])) | length > 0 }}"
+    # Способ настройки сети может быть иным (cloud-init, NetworkManager) —
+    # тогда по netplan судить нельзя.
+    requirements_netplan_used: "{{ (requirements_netplan.files | default([])) | length > 0 }}"

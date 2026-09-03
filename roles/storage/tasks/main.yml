@@ -1,12 +1,13 @@
 ---
-- name: Установить утилиты работы с дисками
+# Требование вендора: ОС передаётся «чистой», без дополнительных
+# компонентов. Поэтому ставим только то, без чего не создать нужную
+# файловую систему: xfsprogs — если среди томов есть xfs, e2fsprogs в
+# Ubuntu Server уже присутствует.
+- name: Установить утилиты файловой системы xfs
   ansible.builtin.apt:
-    name:
-      - e2fsprogs
-      - xfsprogs
-      - parted
-      - gdisk
+    name: xfsprogs
     state: present
+  when: storage_volumes | selectattr('fstype', 'equalto', 'xfs') | list | length > 0
   tags: [storage, packages]
 
 - name: Настроить программный RAID

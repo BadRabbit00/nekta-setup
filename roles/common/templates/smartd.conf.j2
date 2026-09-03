@@ -1,7 +1,0 @@
-# {{ ansible_managed }}
-# Ежедневный короткий тест в 02:00, длинный — по субботам в 03:00.
-# Уведомления уходят на {{ common_mail_to if common_mail_enabled | bool else 'root (локально)' }}.
-DEVICESCAN -a -o on -S on -n standby,q \
-  -s (S/../.././02|L/../../6/03) \
-  -W 4,45,55 \
-  -m {{ common_mail_to if common_mail_enabled | bool else 'root' }} -M exec /usr/share/smartmontools/smartd-runner
