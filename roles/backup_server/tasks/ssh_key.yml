@@ -1,0 +1,37 @@
+---
+- name: Создать каталог ключей root
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Сгенерировать ключ SSH для резервного копирования
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t {{ backup_ssh_key_type }} -N '' -q
+      -C "nekta-backup@{{ inventory_hostname }}"
+      -f {{ backup_ssh_key_path }}
+    creates: "{{ backup_ssh_key_path }}"
+
+- name: Прочитать публичный ключ
+  ansible.builtin.slurp:
+    src: "{{ backup_ssh_key_path }}.pub"
+  register: backup_pubkey_raw
+
+- name: Опубликовать публичный ключ как факт для других плейбуков
+  ansible.builtin.set_fact:
+    backup_ssh_pubkey: "{{ backup_pubkey_raw.content | b64decode | trim }}"
+    cacheable: true
+
+- name: Добавить хост-ключи защищаемых серверов в known_hosts
+  ansible.builtin.known_hosts:
+    path: /root/.ssh/known_hosts
+    name: "{{ '[' ~ item.host ~ ']:' ~ (item.port | default(22)) if (item.port | default(22)) | int != 22 else item.host }}"
+    key: "{{ lookup('pipe', 'ssh-keyscan -T 5 -p ' ~ (item.port | default(22)) ~ ' ' ~ item.host ~ ' 2>/dev/null | grep -m1 ssh-ed25519') }}"
+    state: present
+  loop: "{{ backup_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+  failed_when: false

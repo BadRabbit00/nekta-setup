@@ -1,0 +1,52 @@
+---
+- name: Собрать результаты проверки сервера резервного копирования
+  ansible.builtin.set_fact:
+    backup_check_results:
+      - name: "Ядра CPU"
+        actual: "{{ ansible_facts.processor_cores | int * ansible_facts.processor_count | int }}"
+        required: "{{ backup_profile_min_cpu_cores }}"
+        ok: "{{ (ansible_facts.processor_cores | int * ansible_facts.processor_count | int) >= backup_profile_min_cpu_cores | int }}"
+      - name: "ОЗУ, ГБ"
+        actual: "{{ (ansible_facts.memtotal_mb | int / 1024) | round(1) }}"
+        required: "{{ backup_profile_min_ram_gb }}"
+        ok: "{{ ansible_facts.memtotal_mb | int >= (backup_profile_min_ram_gb | int * 1024 * 0.94) }}"
+      - name: "Том {{ backup_root }} на отдельном диске"
+        actual: "{{ backup_vol.device | default('не смонтирован') }}"
+        required: "отдельный RAID1"
+        ok: "{{ backup_vol.device is defined
+                and backup_vol.device != (backup_root_vol.device | default('')) }}"
+  vars:
+    backup_root_vol: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first | default({}) }}"
+    backup_vol: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', backup_root) | first | default({}) }}"
+
+- name: Показать результат проверки
+  ansible.builtin.debug:
+    msg: >-
+      {{ '[ OK ]' if item.ok | bool else '[ НЕ СООТВЕТСТВУЕТ ]' }}
+      {{ item.name }}: фактически {{ item.actual }}, требуется {{ item.required }}
+  loop: "{{ backup_check_results }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Прервать выполнение при несоответствии
+  ansible.builtin.assert:
+    that:
+      - backup_check_results | rejectattr('ok') | list | length == 0
+    fail_msg: >-
+      Сервер резервного копирования не соответствует требованиям:
+      {{ backup_check_results | rejectattr('ok') | map(attribute='name') | join(', ') }}.
+      Напоминание вендора: копии обязаны лежать на дисках, физически отличных
+      от дисков защищаемого сервера, а объём хранилища — не менее трёхкратного
+      объёма защищаемых дисков.
+    success_msg: "Сервер резервного копирования соответствует требованиям"
+  when: backup_preflight_strict | bool
+
+- name: Оценить достаточность объёма хранилища копий
+  ansible.builtin.debug:
+    msg: >-
+      Том {{ backup_root }}: {{ (backup_vol.size_total | default(0) | int / 1099511627776) | round(2) }} ТБ.
+      По требованиям вендора это не менее трёхкратного суммарного объёма дисков
+      защищаемых серверов ({{ backup_sources | map(attribute='name') | join(', ') | default('источники не заданы') }}).
+      Проверьте расчёт по docs/01-sizing-10k.md.
+  vars:
+    backup_vol: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', backup_root) | first | default({}) }}"

@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+# Общие параметры резервного копирования. Файл читается shell-скриптами
+# /usr/local/sbin/nekta-backup, nekta-backup-status и nekta-restore.
+
+BACKUP_ROOT="{{ backup_root }}"
+STATE_DIR="{{ backup_state_dir }}"
+LOG_DIR="{{ backup_log_dir }}"
+CONF_DIR="{{ backup_conf_dir }}"
+
+# rsync — снимки на жёстких ссылках; borg — плюс дедуплицированный архив.
+ENGINE="{{ backup_engine }}"
+
+SSH_KEY="{{ backup_ssh_key_path }}"
+
+# Глубина хранения по схеме дед-отец-сын.
+KEEP_DAILY={{ backup_keep_daily }}
+KEEP_WEEKLY={{ backup_keep_weekly }}
+KEEP_MONTHLY={{ backup_keep_monthly }}
+
+# Ограничение полосы, КБ/с. 0 — без ограничения (сеть до серверов 1 Гбит/с).
+BWLIMIT={{ backup_bandwidth_limit_kbps }}
+
+# Порог свободного места, ниже которого копирование не запускается.
+MIN_FREE_PERCENT={{ backup_min_free_percent }}
+
+# Возраст последней успешной копии, после которого она считается просроченной.
+MAX_AGE_HOURS={{ backup_max_age_hours }}
+
+BORG_COMPRESSION="{{ backup_borg_compression }}"
+{% if backup_engine == 'borg' %}
+BORG_PASSPHRASE="{{ backup_borg_passphrase }}"
+{% endif %}
+
+MAIL_ENABLED="{{ 'yes' if backup_mail_enabled | bool else 'no' }}"
+MAIL_TO="{{ backup_mail_to }}"
+MAIL_POLICY="{{ backup_mail_policy }}"

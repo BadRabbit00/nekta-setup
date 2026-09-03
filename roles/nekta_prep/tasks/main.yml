@@ -1,0 +1,17 @@
+---
+- name: Проверить соответствие сервера профилю нагрузки
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [nekta, preflight]
+
+- name: Подготовить каталоги данных
+  ansible.builtin.import_tasks: layout.yml
+  tags: [nekta, layout]
+
+- name: Подготовить конфигурацию docker
+  ansible.builtin.import_tasks: docker.yml
+  when: nekta_docker_daemon_config | bool
+  tags: [nekta, docker]
+
+- name: Настроить агента резервного копирования
+  ansible.builtin.import_tasks: backup_agent.yml
+  tags: [nekta, backup]

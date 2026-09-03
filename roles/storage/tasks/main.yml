@@ -1,0 +1,23 @@
+---
+- name: Установить утилиты работы с дисками
+  ansible.builtin.apt:
+    name:
+      - e2fsprogs
+      - xfsprogs
+      - parted
+      - gdisk
+    state: present
+  tags: [storage, packages]
+
+- name: Настроить программный RAID
+  ansible.builtin.import_tasks: raid.yml
+  when: storage_raid_create | bool and storage_raid_arrays | length > 0
+  tags: [storage, raid]
+
+- name: Подготовить и смонтировать тома
+  ansible.builtin.include_tasks: volume.yml
+  loop: "{{ storage_volumes }}"
+  loop_control:
+    loop_var: vol
+    label: "{{ vol.device }} -> {{ vol.mountpoint }}"
+  tags: [storage, mount]

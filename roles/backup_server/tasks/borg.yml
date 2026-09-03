@@ -1,0 +1,38 @@
+---
+- name: Проверить, что задана ключевая фраза borg
+  ansible.builtin.assert:
+    that:
+      - backup_borg_passphrase | length > 0
+    fail_msg: >-
+      backup_engine=borg требует backup_borg_passphrase (положите значение в
+      ansible-vault, см. inventory/vault.yml.example). Без ключевой фразы
+      репозиторий будет незашифрованным.
+
+- name: Инициализировать репозиторий borg для каждого источника
+  ansible.builtin.command:
+    cmd: "borg init --encryption=repokey-blake2 {{ backup_root }}/borg/{{ item.name }}"
+    creates: "{{ backup_root }}/borg/{{ item.name }}/config"
+  environment:
+    BORG_PASSPHRASE: "{{ backup_borg_passphrase }}"
+  loop: "{{ backup_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Выгрузить ключ репозитория для хранения вне сервера
+  ansible.builtin.command:
+    cmd: "borg key export {{ backup_root }}/borg/{{ item.name }} {{ backup_state_dir }}/borg-key-{{ item.name }}.txt"
+    creates: "{{ backup_state_dir }}/borg-key-{{ item.name }}.txt"
+  environment:
+    BORG_PASSPHRASE: "{{ backup_borg_passphrase }}"
+  loop: "{{ backup_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Напомнить о выносе ключа репозитория
+  ansible.builtin.debug:
+    msg: >-
+      Ключи репозиториев borg сохранены в {{ backup_state_dir }}/borg-key-*.txt.
+      Скопируйте их в место хранения вне этого сервера: без ключа и ключевой
+      фразы восстановление из репозитория невозможно.

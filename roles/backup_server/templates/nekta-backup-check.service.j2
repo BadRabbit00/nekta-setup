@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Проверка свежести резервных копий Nekta
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nekta-backup-status
+User=root

@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+CMDSCRIPT /usr/local/sbin/nekta-upssched-cmd
+PIPEFN /run/nut/upssched.pipe
+LOCKFN /run/nut/upssched.lock
+
+# Предупреждение через {{ nut_on_battery_warn_delay }} с работы от батареи —
+# короткие провалы питания не должны никого будить.
+AT ONBATT * START-TIMER onbatt-warn {{ nut_on_battery_warn_delay }}
+AT ONLINE * CANCEL-TIMER onbatt-warn
+{% if nut_on_battery_shutdown_delay | int > 0 %}
+
+# Штатное выключение после {{ nut_on_battery_shutdown_delay }} с от батареи,
+# не дожидаясь сигнала низкого заряда: у сервера БД должен остаться запас
+# ёмкости на сброс кеша на диск.
+AT ONBATT * START-TIMER onbatt-shutdown {{ nut_on_battery_shutdown_delay }}
+AT ONLINE * CANCEL-TIMER onbatt-shutdown
+{% endif %}
+
+AT ONLINE * EXECUTE power-restored
+AT LOWBATT * EXECUTE low-battery
+AT COMMBAD * START-TIMER commbad 60
+AT COMMOK * CANCEL-TIMER commbad
+AT NOCOMM * EXECUTE no-communication
+AT REPLBATT * EXECUTE replace-battery
+AT FSD * EXECUTE forced-shutdown

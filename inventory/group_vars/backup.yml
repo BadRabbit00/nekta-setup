@@ -1,0 +1,77 @@
+---
+# ============================================================================
+#  Сервер резервного копирования.
+#
+#  Требования вендора:
+#    CPU  4 ядра / 8 потоков
+#    RAM  8 ГБ
+#    Диск 1 (система)  SSD 120 ГБ
+#    Диск 2 (хранение) RAID1 из 2 x HDD
+#    Объём хранилища копий >= 3x объёма дисков защищаемых серверов
+#    Сеть до защищаемых серверов — 1 Гбит/с
+# ============================================================================
+
+backup_profile_min_cpu_cores: 4
+backup_profile_min_ram_gb: 8
+backup_profile_min_system_disk_gb: 120
+
+# --- Диски: программный RAID1 из двух HDD --------------------------------
+# Задайте реальные устройства. Массив создаётся только если его ещё нет
+# и storage_raid_create=true.
+storage_raid_create: true
+storage_raid_arrays:
+  - name: "/dev/md0"
+    level: 1
+    devices:
+      - "/dev/sdb"
+      - "/dev/sdc"
+
+storage_volumes:
+  - device: "/dev/md0"
+    mountpoint: "/backup"
+    fstype: "ext4"
+    opts: "defaults,noatime"
+    owner: "root"
+    group: "root"
+    mode: "0750"
+    label: "nekta-backup"
+
+# --- Firewall -------------------------------------------------------------
+firewall_enabled: true
+firewall_default_incoming: "deny"
+# Входящих служб, кроме SSH, здесь нет: копии сервер забирает сам.
+# SSH открывает роль firewall.
+firewall_rules: []
+
+# --- Параметры резервного копирования ------------------------------------
+backup_root: "/backup"
+# rsync   — снимки на жёстких ссылках, восстановление обычным копированием
+# borg    — плюс дедуплицированный архив поверх зеркала (история, сжатие)
+backup_engine: "rsync"
+
+backup_schedule: "01:30"          # OnCalendar для systemd timer
+backup_randomized_delay: "15min"
+backup_bandwidth_limit_kbps: 0    # 0 — без ограничения (сеть 1 Гбит/с)
+backup_ssh_key_path: "/root/.ssh/id_ed25519_nekta_backup"
+
+# Глубина хранения (GFS).
+backup_keep_daily: 14
+backup_keep_weekly: 8
+backup_keep_monthly: 12
+
+# Не запускать копирование, если на томе меньше указанного свободного места.
+backup_min_free_percent: 15
+
+# Порог «протухания» последней успешной копии для проверки состояния.
+backup_max_age_hours: 30
+
+# Borg (используется при backup_engine=borg)
+backup_borg_compression: "zstd,6"
+backup_borg_passphrase: ""        # положите в vault: vault_backup_borg_passphrase
+
+# --- ИБП ------------------------------------------------------------------
+# ИБП подключён к серверу Nekta, сюда состояние приходит по сети.
+nut_mode: "netclient"
+
+# Автообновления безопасности здесь допустимы.
+common_unattended_upgrades: true

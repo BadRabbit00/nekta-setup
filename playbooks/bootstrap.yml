@@ -1,0 +1,27 @@
+---
+# Первичная подготовка «чистой» ОС: python3 для работы Ansible.
+# Запускается один раз, до site.yml:
+#
+#   ansible-playbook playbooks/bootstrap.yml -k -K
+- name: Установить интерпретатор Python на новые серверы
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Проверить наличие python3
+      ansible.builtin.raw: test -x /usr/bin/python3
+      register: bootstrap_python
+      changed_when: false
+      failed_when: false
+
+    - name: Установить python3 и python3-apt
+      ansible.builtin.raw: |
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq python3 python3-apt
+      when: bootstrap_python.rc != 0
+      changed_when: true
+
+    - name: Собрать факты после установки
+      ansible.builtin.setup:

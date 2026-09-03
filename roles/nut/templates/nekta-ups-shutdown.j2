@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Вызывается upsmon как SHUTDOWNCMD.
+#
+# Порядок важен: сначала останавливаем контейнеры Nekta, чтобы СУБД успела
+# сбросить буферы и закрыть файлы, и только потом гасим систему. Резкое
+# снятие питания с работающей БД — самая частая причина того, что после
+# аварии приходится восстанавливаться из резервной копии.
+set -uo pipefail
+
+log() { logger -t nekta-ups-shutdown -- "$*"; }
+
+log "получена команда выключения от upsmon"
+
+{% if nut_graceful_docker_stop | bool %}
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    running="$(docker ps -q)"
+    if [ -n "$running" ]; then
+        log "останавливаю контейнеры (таймаут {{ nut_docker_stop_timeout }} с)"
+        # shellcheck disable=SC2086
+        timeout $(({{ nut_docker_stop_timeout }} + 30)) \
+            docker stop -t {{ nut_docker_stop_timeout }} $running >/dev/null 2>&1 \
+            || log "часть контейнеров не остановилась в срок"
+    fi
+    systemctl stop docker.socket docker.service >/dev/null 2>&1 || true
+fi
+{% endif %}
+
+sync
+log "выключение системы"
+exec /sbin/shutdown -h +0 "Отключение электропитания: выключение по сигналу ИБП"

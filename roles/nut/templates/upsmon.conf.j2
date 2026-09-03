@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+{% if nut_mode in ['netserver', 'standalone'] %}
+# primary: этот сервер управляет ИБП и выключается последним, дав клиентам
+# время корректно завершить работу (HOSTSYNC).
+MONITOR {{ nut_ups_name }}@localhost 1 {{ nut_monitor_user }} {{ nut_monitor_password }} primary
+{% else %}
+# secondary: состояние ИБП берётся с {{ nut_server_host }}; сервер выключается
+# по команде primary, не дожидаясь полного разряда батареи.
+MONITOR {{ nut_ups_name }}@{{ nut_server_host }} 1 {{ nut_monitor_user }} {{ nut_monitor_password }} secondary
+{% endif %}
+
+MINSUPPLIES 1
+SHUTDOWNCMD "/usr/local/sbin/nekta-ups-shutdown"
+NOTIFYCMD /usr/sbin/upssched
+POLLFREQ {{ nut_poll_freq }}
+POLLFREQALERT {{ nut_poll_freq_alert }}
+HOSTSYNC {{ nut_host_sync }}
+DEADTIME {{ nut_dead_time }}
+POWERDOWNFLAG /etc/killpower
+RBWARNTIME 43200
+NOCOMMWARNTIME 300
+FINALDELAY {{ nut_final_delay }}
+
+# EXEC — событие уходит в upssched (таймеры и уведомления),
+# SYSLOG — запись в журнал, WALL — сообщение всем терминалам.
+NOTIFYFLAG ONLINE   SYSLOG+WALL+EXEC
+NOTIFYFLAG ONBATT   SYSLOG+WALL+EXEC
+NOTIFYFLAG LOWBATT  SYSLOG+WALL+EXEC
+NOTIFYFLAG FSD      SYSLOG+WALL+EXEC
+NOTIFYFLAG COMMOK   SYSLOG+EXEC
+NOTIFYFLAG COMMBAD  SYSLOG+WALL+EXEC
+NOTIFYFLAG SHUTDOWN SYSLOG+WALL+EXEC
+NOTIFYFLAG REPLBATT SYSLOG+WALL+EXEC
+NOTIFYFLAG NOCOMM   SYSLOG+WALL+EXEC
+NOTIFYFLAG NOPARENT SYSLOG+WALL+EXEC

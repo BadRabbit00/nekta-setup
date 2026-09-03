@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Управление цепочкой DOCKER-USER.
+#
+# Docker публикует порты контейнеров через собственные цепочки iptables,
+# которые обрабатываются раньше правил ufw, поэтому "ufw deny" на такой порт
+# не действует. Единственная точка, где администратор может вмешаться штатно,
+# — цепочка DOCKER-USER: docker создаёт её пустой и просматривает первой.
+#
+# Скрипт идемпотентен: правила помечаются комментарием nekta-managed и перед
+# применением полностью пересоздаются.
+set -euo pipefail
+
+CONF=/etc/nekta/docker-firewall.conf
+MARK="nekta-managed"
+
+log() { logger -t nekta-docker-firewall -- "$*"; echo "$*"; }
+
+have_docker_chain() {
+    iptables -n -L DOCKER-USER >/dev/null 2>&1
+}
+
+flush_managed() {
+    # Удаляем ранее добавленные нами правила, чужие не трогаем.
+    while iptables -S DOCKER-USER 2>/dev/null | grep -q -- "--comment ${MARK}"; do
+        local rule
+        rule=$(iptables -S DOCKER-USER | grep -m1 -- "--comment ${MARK}")
+        # shellcheck disable=SC2086
+        iptables ${rule/-A /-D } || break
+    done
+}
+
+apply() {
+    if ! have_docker_chain; then
+        log "цепочка DOCKER-USER отсутствует (docker ещё не установлен) — пропуск"
+        exit 0
+    fi
+
+    [[ -f "$CONF" ]] || { log "нет $CONF — пропуск"; exit 0; }
+
+    flush_managed
+
+    if ! grep -qE '^RESTRICT=yes' "$CONF"; then
+        log "ограничение портов контейнеров выключено (RESTRICT=no)"
+        exit 0
+    fi
+
+    local count=0
+    while read -r port proto source; do
+        [[ -z "${port:-}" || "$port" == \#* || "$port" == RESTRICT=* ]] && continue
+        iptables -I DOCKER-USER "$((++count))" \
+            -p "$proto" --dport "$port" -s "$source" \
+            -m comment --comment "$MARK" -j RETURN
+    done < "$CONF"
+
+    # Всё, что не попало в разрешающие правила выше, отбрасываем —
+    # но только для трафика, пришедшего с внешних интерфейсов.
+    iptables -A DOCKER-USER -i "$(ip route show default | awk '/default/ {print $5; exit}')" \
+        -m conntrack --ctstate NEW \
+        -m comment --comment "$MARK" -j DROP
+
+    log "применено правил: $count (+1 запрещающее)"
+}
+
+case "${1:-apply}" in
+    apply) apply ;;
+    flush) have_docker_chain && flush_managed && log "правила сняты" ;;
+    show)  iptables -n -L DOCKER-USER --line-numbers ;;
+    *)     echo "usage: $0 {apply|flush|show}" >&2; exit 2 ;;
+esac

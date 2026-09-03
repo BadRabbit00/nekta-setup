@@ -1,0 +1,22 @@
+---
+- name: Установить ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  tags: [firewall, packages]
+
+- name: Настроить правила ufw
+  ansible.builtin.import_tasks: ufw.yml
+  when: firewall_enabled | bool
+  tags: [firewall]
+
+- name: Выключить ufw, если так задано в инвентаре
+  community.general.ufw:
+    state: disabled
+  when: not (firewall_enabled | bool)
+  tags: [firewall]
+
+- name: Подготовить правила цепочки DOCKER-USER
+  ansible.builtin.import_tasks: docker_user.yml
+  when: firewall_docker_user_enabled | bool
+  tags: [firewall, docker]

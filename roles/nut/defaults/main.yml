@@ -1,0 +1,66 @@
+---
+# Роль хоста в NUT:
+#   netserver — ИБП подключён к этому серверу кабелем USB, состояние
+#               раздаётся по сети другим машинам;
+#   netclient — состояние ИБП берётся с netserver по сети;
+#   standalone — ИБП обслуживает только этот сервер;
+#   none      — роль ничего не делает.
+nut_mode: "none"
+
+nut_ups_name: "ups0"
+nut_ups_description: "UPS"
+# usbhid-ups покрывает подавляющее большинство ИБП с USB-интерфейсом
+# (APC, Eaton, Ippon, CyberPower, Powercom, Powercom HID, Systeme Electric).
+# Для протокола Megatec/Q1 по USB используйте nutdrv_qx.
+nut_ups_driver: "usbhid-ups"
+nut_ups_port: "auto"
+# Опционально — жёсткая привязка к конкретному устройству, если ИБП несколько
+# или драйвер цепляется не к тому USB-устройству.
+nut_ups_vendorid: ""
+nut_ups_productid: ""
+nut_ups_serial: ""
+# Дополнительные параметры драйвера: { pollfreq: 15, offdelay: 60 }
+nut_ups_driver_options:
+  pollfreq: 15
+  pollinterval: 2
+
+# Сервер upsd
+nut_listen_address: "0.0.0.0"
+nut_listen_port: 3493
+nut_maxconn: 64
+
+# Учётные записи upsd. Пароли обязаны приходить из ansible-vault.
+nut_admin_user: "upsadmin"
+nut_admin_password: "{{ vault_nut_admin_password | default('') }}"
+nut_monitor_user: "upsmon"
+nut_monitor_password: "{{ vault_nut_monitor_password | default('') }}"
+
+# Хост, у которого физически подключён ИБП (для netclient).
+nut_server_host: ""
+# Сети/адреса, которым разрешено обращаться к upsd (для netserver).
+nut_client_networks: []
+
+# --- Поведение при отключении питания ------------------------------------
+# Сколько секунд работы от батареи ждать до штатного выключения.
+# 0 — выключаться только по сигналу низкого заряда (LB) от ИБП.
+nut_on_battery_shutdown_delay: 300
+# Через сколько секунд после ONBATT слать первое предупреждение.
+nut_on_battery_warn_delay: 30
+
+nut_poll_freq: 5
+nut_poll_freq_alert: 5
+nut_dead_time: 15
+# Время, которое netserver ждёт отключения клиентов перед своим выключением.
+# Сервер резервного копирования должен успеть завершить работу первым.
+nut_host_sync: 30
+nut_final_delay: 5
+
+# Останавливать контейнеры Nekta перед выключением по питанию.
+nut_graceful_docker_stop: true
+nut_docker_stop_timeout: 90
+
+nut_notify_mail_enabled: "{{ common_mail_enabled | default(false) }}"
+nut_notify_mail_to: "{{ common_mail_to | default('root') }}"
+
+# Открыть 3493/tcp для клиентов, если на хосте включён ufw.
+nut_manage_firewall: true

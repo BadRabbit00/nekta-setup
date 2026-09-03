@@ -1,0 +1,54 @@
+---
+- name: Разложить общую конфигурацию резервного копирования
+  ansible.builtin.template:
+    src: backup.conf.j2
+    dest: /etc/nekta/backup.conf
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Разложить описания источников
+  ansible.builtin.template:
+    src: source.conf.j2
+    dest: "{{ backup_conf_dir }}/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0640"
+  loop: "{{ backup_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Убрать описания источников, которых больше нет в инвентаре
+  ansible.builtin.find:
+    paths: "{{ backup_conf_dir }}"
+    patterns: "*.conf"
+  register: backup_existing_confs
+
+- name: Удалить лишние файлы описаний
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ backup_existing_confs.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename | splitext | first) not in (backup_sources | map(attribute='name') | list)
+
+- name: Разложить исполняемые скрипты
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/sbin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - nekta-backup
+    - nekta-backup-status
+    - nekta-restore
+
+- name: Настроить ротацию журналов резервного копирования
+  ansible.builtin.template:
+    src: logrotate-nekta-backup.j2
+    dest: /etc/logrotate.d/nekta-backup
+    owner: root
+    group: root
+    mode: "0644"

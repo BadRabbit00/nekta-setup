@@ -1,0 +1,14 @@
+---
+profile: production
+
+exclude_paths:
+  - collections/
+  - .github/
+  - docs/
+
+skip_list:
+  # Inventory and vars files intentionally carry example values.
+  - var-naming[no-role-prefix]
+
+warn_list:
+  - experimental

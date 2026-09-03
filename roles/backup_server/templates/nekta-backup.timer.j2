@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Ежедневное резервное копирование серверов Nekta
+
+[Timer]
+OnCalendar={{ backup_schedule }}
+RandomizedDelaySec={{ backup_randomized_delay }}
+# Запустить пропущенный цикл, если сервер был выключен по расписанию.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

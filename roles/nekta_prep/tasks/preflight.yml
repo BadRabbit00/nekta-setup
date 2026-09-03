@@ -1,0 +1,95 @@
+---
+- name: Рассчитать требуемый объём тома данных
+  ansible.builtin.set_fact:
+    nekta_storage_required_gb: >-
+      {{ ((nekta_profile_devices | int
+           * nekta_msgs_per_device_per_day | float
+           * nekta_msg_size_kb | int
+           * 365
+           * nekta_retention_years | float
+           * (1 + nekta_storage_overhead_percent | int / 100))
+          / 1048576) | round(1) }}
+
+- name: Собрать сведения о соответствии требованиям
+  ansible.builtin.set_fact:
+    nekta_check_results:
+      - name: "Ядра CPU"
+        actual: "{{ ansible_facts.processor_cores | int * ansible_facts.processor_count | int }}"
+        required: "{{ nekta_profile_min_cpu_cores }}"
+        ok: "{{ (ansible_facts.processor_cores | int * ansible_facts.processor_count | int) >= nekta_profile_min_cpu_cores | int }}"
+      - name: "Потоки CPU"
+        actual: "{{ ansible_facts.processor_vcpus | int }}"
+        required: "{{ nekta_profile_min_cpu_threads }}"
+        ok: "{{ ansible_facts.processor_vcpus | int >= nekta_profile_min_cpu_threads | int }}"
+      - name: "ОЗУ, ГБ"
+        actual: "{{ (ansible_facts.memtotal_mb | int / 1024) | round(1) }}"
+        required: "{{ nekta_profile_min_ram_gb }}"
+        # Часть ОЗУ забирает BIOS и встроенная графика — допускаем 6% погрешности.
+        ok: "{{ ansible_facts.memtotal_mb | int >= (nekta_profile_min_ram_gb | int * 1024 * 0.94) }}"
+      - name: "Системный диск, ГБ"
+        actual: "{{ (nekta_root_mount.size_total | default(0) | int / 1073741824) | round(1) }}"
+        required: "{{ nekta_profile_min_system_disk_gb }}"
+        ok: "{{ (nekta_root_mount.size_total | default(0) | int / 1073741824) >= (nekta_profile_min_system_disk_gb | int * 0.93) }}"
+      - name: "Том {{ nekta_data_dir }}, ГБ (свободно)"
+        actual: "{{ (nekta_data_mount.size_available | default(0) | int / 1073741824) | round(1) }}"
+        required: "{{ nekta_storage_required_gb }}"
+        ok: "{{ (nekta_data_mount.size_available | default(0) | int / 1073741824) >= nekta_storage_required_gb | float }}"
+      - name: "{{ nekta_data_dir }} на отдельном диске"
+        actual: "{{ nekta_data_mount.device | default('не смонтирован') }}"
+        required: "отдельный том"
+        ok: "{{ nekta_data_mount is defined and nekta_data_mount.device is defined
+                and nekta_data_mount.device != (nekta_root_mount.device | default('')) }}"
+  vars:
+    nekta_root_mount: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first | default({}) }}"
+    nekta_data_mount: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', nekta_data_dir) | first | default({}) }}"
+
+- name: Показать результат проверки
+  ansible.builtin.debug:
+    msg: >-
+      {{ '[ OK ]' if item.ok | bool else '[ НЕ СООТВЕТСТВУЕТ ]' }}
+      {{ item.name }}: фактически {{ item.actual }}, требуется {{ item.required }}
+  loop: "{{ nekta_check_results }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Прервать выполнение при несоответствии требованиям
+  ansible.builtin.assert:
+    that:
+      - nekta_check_results | rejectattr('ok') | list | length == 0
+    fail_msg: >-
+      Сервер не соответствует профилю «до {{ nekta_profile_devices }} устройств»:
+      {{ nekta_check_results | rejectattr('ok')
+         | map(attribute='name') | join(', ') }}.
+      Требуемый объём {{ nekta_data_dir }} — {{ nekta_storage_required_gb }} ГБ
+      ({{ nekta_profile_devices }} устройств x {{ nekta_msgs_per_device_per_day }} сообщ./сут
+      x {{ nekta_msg_size_kb }} КБ x {{ nekta_retention_years }} лет + {{ nekta_storage_overhead_percent }}%).
+      Если расхождение допустимо, запустите с -e nekta_preflight_strict=false
+    success_msg: "Сервер соответствует профилю «до {{ nekta_profile_devices }} устройств»"
+  when: nekta_preflight_strict | bool
+
+- name: Проверить доступность внешних ресурсов Nekta
+  ansible.builtin.wait_for:
+    host: "{{ item.host }}"
+    port: "{{ item.port }}"
+    timeout: "{{ nekta_outbound_timeout }}"
+    state: started
+  loop: "{{ nekta_outbound_endpoints }}"
+  loop_control:
+    label: "{{ item.host }}:{{ item.port }}"
+  register: nekta_outbound_check
+  failed_when: false
+  changed_when: false
+  when: nekta_preflight_check_outbound | bool
+
+- name: Показать недоступные ресурсы
+  ansible.builtin.debug:
+    msg: >-
+      ВНИМАНИЕ: нет доступа к {{ item.item.host }}:{{ item.item.port }}.
+      Без него установка и обновление Nekta Server не выполнятся —
+      откройте исходящий доступ (см. docs/04-network-ports.md).
+  loop: "{{ nekta_outbound_check.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.host | default('') }}"
+  when:
+    - nekta_preflight_check_outbound | bool
+    - item.failed | default(false) or (item.state | default('')) != 'started'

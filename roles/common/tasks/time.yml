@@ -1,0 +1,26 @@
+---
+- name: Установить часовой пояс
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+  notify: Restart cron
+
+- name: Установить chrony
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+
+- name: Разложить конфигурацию chrony
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart chrony
+
+- name: Включить и запустить chrony
+  ansible.builtin.systemd:
+    name: chrony
+    enabled: true
+    state: started

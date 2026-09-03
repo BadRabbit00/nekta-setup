@@ -1,0 +1,17 @@
+---
+storage_volumes: []
+
+# Программный RAID (используется на сервере резервного копирования).
+storage_raid_create: false
+storage_raid_arrays: []
+storage_raid_monitor_mail: "root"
+
+# ПРЕДОХРАНИТЕЛЬ. Пока false, роль отказывается создавать ФС или RAID
+# на устройстве, где уже есть файловая система, LVM или таблица разделов.
+# Включайте осознанно и только для конкретного запуска:
+#   ansible-playbook ... -e storage_force_format=true
+storage_force_format: false
+
+# Резерв суперпользователя на томах данных: 5% от многотерабайтного HDD —
+# это десятки гигабайт впустую.
+storage_reserved_blocks_percentage: 1

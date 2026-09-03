@@ -1,0 +1,26 @@
+---
+# ============================================================================
+#  Пример файла с секретами. Скопируйте в inventory/group_vars/all/vault.yml
+#  и зашифруйте:
+#
+#     mkdir -p inventory/group_vars/all
+#     cp inventory/vault.yml.example inventory/group_vars/all/vault.yml
+#     ansible-vault encrypt inventory/group_vars/all/vault.yml
+#
+#  Затем перенесите общие переменные из inventory/group_vars/all.yml в
+#  inventory/group_vars/all/main.yml (Ansible читает и файл, и каталог с
+#  одноимённым названием, но не оба сразу — используйте каталог).
+# ============================================================================
+
+# Пароли пользователей NUT (upsd.users). Обязательны, если nut_mode != none.
+vault_nut_admin_password: "СМЕНИТЕ_МЕНЯ_admin"
+vault_nut_monitor_password: "СМЕНИТЕ_МЕНЯ_monitor"
+
+# Пароль SMTP для отправки отчётов и аварийных уведомлений.
+vault_common_mail_password: "СМЕНИТЕ_МЕНЯ_smtp"
+
+# Ключевая фраза репозитория borg (только при backup_engine=borg).
+vault_backup_borg_passphrase: "СМЕНИТЕ_МЕНЯ_borg"
+
+# Хеш пароля администратора: mkpasswd --method=yescrypt
+vault_sysadm_password_hash: "!"

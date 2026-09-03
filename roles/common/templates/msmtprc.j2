@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+defaults
+auth            {{ 'on' if common_mail_user | length > 0 else 'off' }}
+tls             {{ 'on' if common_mail_tls | bool else 'off' }}
+tls_starttls    {{ 'on' if common_mail_starttls | bool else 'off' }}
+tls_trust_file  /etc/ssl/certs/ca-certificates.crt
+logfile         /var/log/msmtp.log
+
+account         nekta
+host            {{ common_mail_host }}
+port            {{ common_mail_port }}
+from            {{ common_mail_from }}
+{% if common_mail_user | length > 0 %}
+user            {{ common_mail_user }}
+password        {{ common_mail_password }}
+{% endif %}
+
+account default : nekta
+aliases /etc/aliases

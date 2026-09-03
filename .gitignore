@@ -1,0 +1,21 @@
+# Ansible
+*.retry
+collections/
+.vault-pass
+inventory/host_vars/*.local.yml
+inventory/hosts.local.yml
+
+# Secrets that must never be committed unencrypted
+inventory/group_vars/*/vault.yml
+!inventory/group_vars/*/vault.yml.example
+
+# Python / editors
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.vscode/
+*.swp
+
+# direnv
+.direnv/

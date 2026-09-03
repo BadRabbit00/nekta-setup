@@ -1,0 +1,22 @@
+---
+- name: Настройка сервера резервного копирования
+  hosts: backup
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: common
+      tags: [common]
+    - role: storage
+      tags: [storage]
+    - role: firewall
+      tags: [firewall]
+    - role: backup_server
+      tags: [backup]
+
+  post_tasks:
+    - name: Показать публичный ключ доступа к защищаемым серверам
+      ansible.builtin.debug:
+        msg: >-
+          Публичный ключ сервера резервного копирования:
+          {{ backup_ssh_pubkey | default('не сгенерирован') }}

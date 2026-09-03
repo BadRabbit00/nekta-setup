@@ -1,0 +1,84 @@
+---
+- name: Задать политики по умолчанию
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: "{{ firewall_default_incoming }}" }
+    - { direction: outgoing, policy: "{{ firewall_default_outgoing }}" }
+    - { direction: routed, policy: "{{ firewall_default_routed }}" }
+  notify: Reload ufw
+
+- name: Включить журналирование
+  community.general.ufw:
+    logging: "{{ firewall_logging }}"
+
+# SSH открывается первым: иначе включение ufw обрывает текущую сессию.
+- name: Разрешить SSH из сетей управления
+  community.general.ufw:
+    rule: allow
+    port: "{{ common_ssh_port | default(22) }}"
+    proto: tcp
+    from_ip: "{{ item }}"
+    comment: "SSH из сети управления"
+  loop: "{{ site_management_networks }}"
+  when: firewall_restrict_ssh_to_management | bool and site_management_networks | length > 0
+
+- name: Разрешить SSH отовсюду
+  community.general.ufw:
+    rule: allow
+    port: "{{ common_ssh_port | default(22) }}"
+    proto: tcp
+    comment: "SSH (установка и обновление Nekta выполняются через интернет)"
+  when: not (firewall_restrict_ssh_to_management | bool)
+
+- name: Открыть сервисные порты
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment | default('') }}"
+  loop: "{{ firewall_rules }}"
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto }}"
+
+- name: Открыть служебные порты только для техподдержки Nekta
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.0.port | string }}"
+    proto: "{{ item.0.proto }}"
+    from_ip: "{{ item.1 }}"
+    comment: "{{ item.0.comment | default('') }}"
+  loop: "{{ firewall_support_only_rules | product(nekta_support_ips) | list }}"
+  loop_control:
+    label: "{{ item.0.port }}/{{ item.0.proto }} from {{ item.1 }}"
+
+- name: Открыть порты для сервера резервного копирования
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.0.port | string }}"
+    proto: "{{ item.0.proto }}"
+    from_ip: "{{ item.1 }}"
+    comment: "{{ item.0.comment | default('') }}"
+  loop: >-
+    {{ firewall_allow_from_backup
+       | product(groups['backup'] | default([])
+                 | map('extract', hostvars, 'ansible_host') | list)
+       | list }}
+  loop_control:
+    label: "{{ item.0.port }}/{{ item.0.proto }} from {{ item.1 }}"
+
+- name: Применить дополнительные правила
+  community.general.ufw:
+    rule: "{{ item.rule | default('allow') }}"
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    from_ip: "{{ item.from | default('any') }}"
+    comment: "{{ item.comment | default('') }}"
+  loop: "{{ firewall_extra_rules }}"
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto | default('tcp') }}"
+
+- name: Включить ufw
+  community.general.ufw:
+    state: enabled

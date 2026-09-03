@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+# Описание ИБП, подключённого по USB к {{ inventory_hostname }}.
+#
+# Если драйвер не видит ИБП — определите модель командой:  nut-scanner -U
+# и подставьте выданные driver/port/vendorid/productid в host_vars.
+
+maxretry = 3
+retrydelay = 5
+
+[{{ nut_ups_name }}]
+    driver = {{ nut_ups_driver }}
+    port = {{ nut_ups_port }}
+    desc = "{{ nut_ups_description }}"
+{% if nut_ups_vendorid | length > 0 %}
+    vendorid = {{ nut_ups_vendorid }}
+{% endif %}
+{% if nut_ups_productid | length > 0 %}
+    productid = {{ nut_ups_productid }}
+{% endif %}
+{% if nut_ups_serial | length > 0 %}
+    serial = {{ nut_ups_serial }}
+{% endif %}
+{% for key, value in nut_ups_driver_options.items() %}
+    {{ key }} = {{ value }}
+{% endfor %}

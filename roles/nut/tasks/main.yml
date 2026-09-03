@@ -1,0 +1,57 @@
+---
+- name: Пропустить настройку ИБП
+  ansible.builtin.debug:
+    msg: "nut_mode=none — настройка ИБП для {{ inventory_hostname }} не выполняется"
+  when: nut_mode == "none"
+  tags: [nut]
+
+- name: Настроить NUT
+  when: nut_mode != "none"
+  tags: [nut]
+  block:
+    - name: Проверить корректность режима
+      ansible.builtin.assert:
+        that:
+          - nut_mode in ["netserver", "netclient", "standalone"]
+        fail_msg: "nut_mode должен быть netserver, netclient, standalone или none (задано: {{ nut_mode }})"
+
+    - name: Проверить, что заданы пароли NUT
+      ansible.builtin.assert:
+        that:
+          - nut_admin_password | length > 0
+          - nut_monitor_password | length > 0
+        fail_msg: >-
+          Не заданы vault_nut_admin_password / vault_nut_monitor_password.
+          Создайте зашифрованный файл секретов по образцу inventory/vault.yml.example.
+
+    - name: Проверить, что для netclient указан адрес сервера ИБП
+      ansible.builtin.assert:
+        that:
+          - nut_server_host | length > 0
+        fail_msg: "Для nut_mode=netclient задайте nut_server_host — адрес сервера, к которому подключён ИБП."
+      when: nut_mode == "netclient"
+
+    - name: Установить пакеты NUT
+      ansible.builtin.apt:
+        name: "{{ nut_packages }}"
+        state: present
+
+    - name: Настроить драйвер и сервер ИБП
+      ansible.builtin.import_tasks: server.yml
+      when: nut_mode in ["netserver", "standalone"]
+
+    - name: Настроить мониторинг и выключение
+      ansible.builtin.import_tasks: monitor.yml
+
+    - name: Открыть порт upsd для клиентов
+      community.general.ufw:
+        rule: allow
+        port: "{{ nut_listen_port }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+        comment: "NUT upsd"
+      loop: "{{ nut_client_networks }}"
+      when:
+        - nut_mode == "netserver"
+        - nut_manage_firewall | bool
+        - firewall_enabled | default(false) | bool

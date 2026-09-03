@@ -1,0 +1,22 @@
+---
+- name: Restart nut driver
+  ansible.builtin.systemd:
+    name: nut-driver-enumerator.service
+    state: restarted
+  failed_when: false
+
+- name: Restart nut server
+  ansible.builtin.systemd:
+    name: nut-server.service
+    state: restarted
+  when: nut_mode in ["netserver", "standalone"]
+
+- name: Restart nut monitor
+  ansible.builtin.systemd:
+    name: nut-monitor.service
+    state: restarted
+
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: udevadm control --reload-rules
+  changed_when: true

@@ -1,0 +1,122 @@
+---
+- name: Установить mdadm
+  ansible.builtin.apt:
+    name: mdadm
+    state: present
+
+- name: Собрать сведения о существующих массивах
+  ansible.builtin.command:
+    cmd: "mdadm --detail --scan"
+  register: storage_mdadm_scan
+  changed_when: false
+
+- name: Проверить наличие дисков-участников массива
+  ansible.builtin.stat:
+    path: "{{ item.1 }}"
+  loop: "{{ storage_raid_arrays | subelements('devices') }}"
+  loop_control:
+    label: "{{ item.1 }}"
+  register: storage_raid_members
+
+- name: Отказать, если какого-либо диска нет в системе
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Устройство {{ item.item.1 }} не найдено. Проверьте вывод lsblk перед запуском."
+  loop: "{{ storage_raid_members.results }}"
+  loop_control:
+    label: "{{ item.item.1 }}"
+
+- name: Проверить, не занят ли диск существующей ФС или разделами
+  ansible.builtin.command:
+    cmd: "blkid -p -o value -s TYPE {{ item.1 }}"
+  register: storage_raid_blkid
+  changed_when: false
+  failed_when: false
+  loop: "{{ storage_raid_arrays | subelements('devices') }}"
+  loop_control:
+    label: "{{ item.1 }}"
+
+- name: Отказать, если на диске уже есть данные (перекрывается storage_force_format)
+  ansible.builtin.assert:
+    that:
+      - item.stdout | trim == "" or item.stdout | trim == "linux_raid_member" or storage_force_format | bool
+    fail_msg: >-
+      На {{ item.item.1 }} обнаружено '{{ item.stdout | trim }}'. Роль не будет
+      затирать существующие данные. Если диск действительно пустой, запустите с
+      -e storage_force_format=true
+  loop: "{{ storage_raid_blkid.results }}"
+  loop_control:
+    label: "{{ item.item.1 }}"
+
+- name: Создать массивы RAID
+  ansible.builtin.command:
+    cmd: >-
+      mdadm --create {{ item.name }} --run --level={{ item.level }}
+      --raid-devices={{ item.devices | length }}
+      --metadata=1.2
+      {{ item.devices | join(' ') }}
+  when: item.name not in storage_mdadm_scan.stdout
+  loop: "{{ storage_raid_arrays }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: storage_raid_created
+  changed_when: storage_raid_created is not skipped
+
+# Опрашиваем только свои массивы: общий "mdadm --detail --scan" вернул бы и
+# системные массивы, чьи записи уже сделал установщик, и они задвоились бы.
+- name: Перечитать состав созданных массивов
+  ansible.builtin.command:
+    cmd: "mdadm --detail --scan {{ item.name }}"
+  register: storage_mdadm_scan_final
+  changed_when: false
+  loop: "{{ storage_raid_arrays }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# Без записи ARRAY в mdadm.conf и пересборки initramfs массив после
+# перезагрузки может собраться под другим именем (/dev/md127) — том в fstab
+# тогда не смонтируется.
+- name: Записать состав массивов в mdadm.conf
+  ansible.builtin.blockinfile:
+    path: /etc/mdadm/mdadm.conf
+    marker: "# {mark} ANSIBLE MANAGED: массивы Nekta"
+    block: "{{ storage_mdadm_scan_final.results | map(attribute='stdout') | select('string') | join('\n') }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update initramfs
+
+- name: Настроить уведомления mdadm о деградации массива
+  ansible.builtin.lineinfile:
+    path: /etc/mdadm/mdadm.conf
+    regexp: '^MAILADDR '
+    line: "MAILADDR {{ storage_raid_monitor_mail }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart mdmonitor
+
+- name: Включить службу слежения за массивами
+  ansible.builtin.systemd:
+    name: mdmonitor
+    enabled: true
+    state: started
+  failed_when: false
+
+- name: Прочитать состояние синхронизации массивов
+  ansible.builtin.slurp:
+    src: /proc/mdstat
+  register: storage_mdstat
+
+- name: Сообщить о фоновой синхронизации массива
+  ansible.builtin.debug:
+    msg: >-
+      Массив синхронизируется. Он уже пригоден к работе, но до окончания
+      синхронизации отказоустойчивости нет — на дисках в несколько терабайт
+      это часы. Следите за /proc/mdstat.
+  when: "'recovery' in mdstat or 'resync' in mdstat"
+  vars:
+    mdstat: "{{ storage_mdstat.content | b64decode }}"

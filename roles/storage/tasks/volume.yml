@@ -1,0 +1,85 @@
+---
+- name: "Проверить наличие устройства {{ vol.device }}"
+  ansible.builtin.stat:
+    path: "{{ vol.device }}"
+  register: storage_dev
+
+- name: "Отказать, если отсутствует устройство {{ vol.device }}"
+  ansible.builtin.assert:
+    that:
+      - storage_dev.stat.exists
+    fail_msg: >-
+      Устройство {{ vol.device }} не найдено. Укажите реальный диск в
+      inventory/host_vars (удобнее всего путь /dev/disk/by-id/..., он не
+      меняется при перестановке дисков).
+
+- name: "Определить текущую файловую систему на {{ vol.device }}"
+  ansible.builtin.command:
+    cmd: "blkid -p -o value -s TYPE {{ vol.device }}"
+  register: storage_fs_type
+  changed_when: false
+  failed_when: false
+
+- name: "Отказать при несовпадении файловой системы на {{ vol.device }}"
+  ansible.builtin.assert:
+    that:
+      - storage_fs_type.stdout | trim in ["", vol.fstype] or storage_force_format | bool
+    fail_msg: >-
+      На {{ vol.device }} уже есть ФС '{{ storage_fs_type.stdout | trim }}',
+      а запрошена '{{ vol.fstype }}'. Роль не переформатирует диск с данными.
+      Осознанное пересоздание: -e storage_force_format=true
+
+- name: "Создать файловую систему на {{ vol.device }}"
+  community.general.filesystem:
+    fstype: "{{ vol.fstype }}"
+    dev: "{{ vol.device }}"
+    opts: "{{ vol.mkfs_opts | default(omit) }}"
+    force: "{{ storage_force_format | bool }}"
+  when: storage_fs_type.stdout | trim == "" or storage_force_format | bool
+
+- name: "Назначить метку тома {{ vol.label | default('без метки') }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ 'e2label ' + vol.device + ' ' + vol.label if vol.fstype.startswith('ext')
+         else 'xfs_admin -L ' + vol.label + ' ' + vol.device }}
+  when: vol.label is defined
+  changed_when: false
+  failed_when: false
+
+- name: "Уменьшить зарезервированную для root долю на {{ vol.device }}"
+  ansible.builtin.command:
+    cmd: "tune2fs -m {{ storage_reserved_blocks_percentage }} {{ vol.device }}"
+  when: vol.fstype.startswith('ext')
+  changed_when: false
+
+- name: "Создать точку монтирования {{ vol.mountpoint }}"
+  ansible.builtin.file:
+    path: "{{ vol.mountpoint }}"
+    state: directory
+    owner: "{{ vol.owner | default('root') }}"
+    group: "{{ vol.group | default('root') }}"
+    mode: "{{ vol.mode | default('0755') }}"
+
+- name: "Получить UUID тома {{ vol.device }}"
+  ansible.builtin.command:
+    cmd: "blkid -o value -s UUID {{ vol.device }}"
+  register: storage_uuid
+  changed_when: false
+
+- name: "Записать в fstab и смонтировать {{ vol.mountpoint }}"
+  ansible.posix.mount:
+    path: "{{ vol.mountpoint }}"
+    src: "UUID={{ storage_uuid.stdout | trim }}"
+    fstype: "{{ vol.fstype }}"
+    opts: "{{ vol.opts | default('defaults,noatime') }}"
+    dump: "0"
+    passno: "2"
+    state: mounted
+
+- name: "Восстановить после монтирования владельца и права {{ vol.mountpoint }}"
+  ansible.builtin.file:
+    path: "{{ vol.mountpoint }}"
+    state: directory
+    owner: "{{ vol.owner | default('root') }}"
+    group: "{{ vol.group | default('root') }}"
+    mode: "{{ vol.mode | default('0755') }}"

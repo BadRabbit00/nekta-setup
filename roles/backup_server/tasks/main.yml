@@ -1,0 +1,45 @@
+---
+- name: Проверить соответствие сервера требованиям
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [backup, preflight]
+
+- name: Установить пакеты
+  ansible.builtin.apt:
+    name: "{{ ['rsync', 'openssh-client', 'coreutils']
+              + (['borgbackup'] if backup_engine == 'borg' else []) }}"
+    state: present
+  tags: [backup, packages]
+
+- name: Создать структуру каталогов
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ backup_root }}"
+    - "{{ backup_root }}/snapshots"
+    - "{{ backup_root }}/borg"
+    - "{{ backup_state_dir }}"
+    - "{{ backup_log_dir }}"
+    - "/etc/nekta"
+    - "{{ backup_conf_dir }}"
+  tags: [backup]
+
+- name: Подготовить ключ SSH для доступа к защищаемым серверам
+  ansible.builtin.import_tasks: ssh_key.yml
+  tags: [backup, ssh]
+
+- name: Разложить скрипты и конфигурацию
+  ansible.builtin.import_tasks: scripts.yml
+  tags: [backup, scripts]
+
+- name: Настроить запуск по расписанию
+  ansible.builtin.import_tasks: schedule.yml
+  tags: [backup, schedule]
+
+- name: Инициализировать репозитории borg
+  ansible.builtin.import_tasks: borg.yml
+  when: backup_engine == "borg"
+  tags: [backup, borg]

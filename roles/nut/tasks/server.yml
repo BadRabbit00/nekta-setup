@@ -1,0 +1,69 @@
+---
+- name: Разложить ups.conf (описание ИБП и параметры драйвера)
+  ansible.builtin.template:
+    src: ups.conf.j2
+    dest: /etc/nut/ups.conf
+    owner: root
+    group: nut
+    mode: "0640"
+    backup: true
+  notify: Restart nut driver
+
+- name: Разложить upsd.conf
+  ansible.builtin.template:
+    src: upsd.conf.j2
+    dest: /etc/nut/upsd.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart nut server
+
+- name: Разложить upsd.users
+  ansible.builtin.template:
+    src: upsd.users.j2
+    dest: /etc/nut/upsd.users
+    owner: root
+    group: nut
+    mode: "0640"
+  no_log: true
+  notify: Restart nut server
+
+# Пакет nut-client ставит /lib/udev/rules.d/62-nut-usbups.rules с правами на
+# известные модели. Своё правило нужно, если ИБП не опознан по vendor id.
+- name: Добавить правило udev для нестандартного USB-устройства ИБП
+  ansible.builtin.template:
+    src: 63-nut-nekta-usbups.rules.j2
+    dest: /etc/udev/rules.d/63-nut-nekta-usbups.rules
+    owner: root
+    group: root
+    mode: "0644"
+  when: nut_ups_vendorid | length > 0
+  notify: Reload udev rules
+
+- name: Включить службы драйвера и сервера ИБП
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - nut-driver-enumerator.service
+    - nut-server.service
+  failed_when: false
+
+- name: Проверить, что ИБП опрашивается
+  ansible.builtin.command:
+    cmd: "upsc {{ nut_ups_name }}@localhost ups.status"
+  register: nut_status_check
+  changed_when: false
+  failed_when: false
+  retries: 5
+  delay: 3
+  until: nut_status_check.rc == 0
+
+- name: Сообщить о результате опроса ИБП
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'ИБП отвечает, статус: ' ~ nut_status_check.stdout
+         if nut_status_check.rc == 0
+         else 'ВНИМАНИЕ: ИБП не отвечает. Проверьте USB-кабель и подберите драйвер:
+               nut-scanner -U. Подробности: docs/03-ups-nut.md' }}

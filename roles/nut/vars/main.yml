@@ -1,0 +1,4 @@
+---
+nut_packages: >-
+  {{ ['nut-client', 'usbutils']
+     + (['nut-server'] if nut_mode in ['netserver', 'standalone'] else []) }}

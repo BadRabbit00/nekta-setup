@@ -1,0 +1,18 @@
+---
+# Реальные устройства под RAID1 — проверьте `lsblk -o NAME,SIZE,SERIAL` перед запуском.
+storage_raid_arrays:
+  - name: "/dev/md0"
+    level: 1
+    devices:
+      - "/dev/disk/by-id/ata-CHANGE_ME_HDD_1"
+      - "/dev/disk/by-id/ata-CHANGE_ME_HDD_2"
+
+# Хосты, с которых забираются резервные копии.
+backup_sources:
+  - name: "nekta-01"
+    host: "{{ hostvars['nekta-01'].ansible_host }}"
+    port: "{{ hostvars['nekta-01'].ansible_port | default(22) }}"
+    user: "{{ hostvars['nekta-01'].nekta_backup_user | default('nekta-backup') }}"
+    paths: "{{ hostvars['nekta-01'].nekta_backup_paths }}"
+    exclude: "{{ hostvars['nekta-01'].nekta_backup_exclude }}"
+    predump: "{{ hostvars['nekta-01'].nekta_predump_enabled | default(true) }}"

@@ -1,0 +1,36 @@
+---
+# Проверка ИБП без имитации отключения питания.
+#
+#   ansible-playbook playbooks/ups-test.yml
+- name: Опрос состояния ИБП
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Получить состояние ИБП
+      ansible.builtin.command:
+        cmd: >-
+          upsc {{ nut_ups_name }}@{{ 'localhost'
+                  if nut_mode in ['netserver', 'standalone']
+                  else nut_server_host }}
+      register: ups_state
+      changed_when: false
+      failed_when: false
+      when: nut_mode | default('none') != 'none'
+
+    - name: Показать состояние
+      ansible.builtin.debug:
+        msg: "{{ ups_state.stdout_lines | default(['ИБП недоступен: ' ~ (ups_state.stderr | default('нет данных'))]) }}"
+      when: nut_mode | default('none') != 'none'
+
+    - name: Собрать сведения о службах
+      ansible.builtin.service_facts:
+      when: nut_mode | default('none') != 'none'
+
+    - name: Показать состояние службы мониторинга ИБП
+      ansible.builtin.debug:
+        msg: >-
+          nut-monitor:
+          {{ ansible_facts.services['nut-monitor.service'].state | default('служба не найдена') }}
+      when: nut_mode | default('none') != 'none'

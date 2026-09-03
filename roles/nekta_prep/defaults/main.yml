@@ -1,0 +1,45 @@
+---
+# --- Профиль нагрузки -----------------------------------------------------
+nekta_profile_devices: 10000
+nekta_profile_min_cpu_cores: 4
+nekta_profile_min_cpu_threads: 8
+nekta_profile_min_cpu_mhz: 2000
+nekta_profile_min_ram_gb: 20
+nekta_profile_min_system_disk_gb: 120
+
+# Методика расчёта тома /nekta (из системных требований Nekta):
+#   объём = устройства x сообщений/сутки x размер сообщения x 365 x лет
+#           x (1 + запас на ручные опросы и журналы событий)
+nekta_msg_size_kb: 2
+nekta_msgs_per_device_per_day: 2
+nekta_retention_years: 3
+nekta_storage_overhead_percent: 30
+
+nekta_data_dir: "/nekta"
+
+# false — несоответствие требованиям выводится предупреждением, а не ошибкой.
+nekta_preflight_strict: true
+# Проверять доступность внешних ресурсов вендора.
+nekta_preflight_check_outbound: true
+nekta_outbound_endpoints: []
+nekta_outbound_timeout: 5
+
+# --- Docker ---------------------------------------------------------------
+# Сам docker и стек Nekta устанавливает вендор. Мы только заранее готовим
+# daemon.json: без ротации логи контейнеров переполняют системный SSD.
+nekta_docker_daemon_config: true
+nekta_docker_log_max_size: "50m"
+nekta_docker_log_max_file: 3
+nekta_docker_address_pools:
+  - base: "172.20.0.0/16"
+    size: 24
+
+# --- Агент резервного копирования ----------------------------------------
+nekta_backup_user: "nekta-backup"
+nekta_backup_pubkeys: []
+nekta_backup_allowed_from: []
+nekta_predump_enabled: true
+nekta_predump_dir: "/nekta/backup-dumps"
+nekta_predump_keep: 3
+nekta_predump_timer_enabled: false
+nekta_predump_timer_schedule: "00:45"

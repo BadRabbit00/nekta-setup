@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# Доступ драйвера NUT к USB-устройству ИБП, не описанному в штатных правилах.
+ACTION=="add", SUBSYSTEM=="usb", \
+  ATTR{idVendor}=="{{ nut_ups_vendorid }}"{% if nut_ups_productid | length > 0 %}, ATTR{idProduct}=="{{ nut_ups_productid }}"{% endif %}, \
+  MODE="0660", GROUP="nut"

@@ -1,0 +1,62 @@
+---
+- name: Задать режим работы NUT
+  ansible.builtin.copy:
+    content: |
+      # {{ ansible_managed }}
+      MODE={{ nut_mode }}
+    dest: /etc/nut/nut.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify:
+    - Restart nut server
+    - Restart nut monitor
+
+- name: Разложить скрипт корректного выключения
+  ansible.builtin.template:
+    src: nekta-ups-shutdown.j2
+    dest: /usr/local/sbin/nekta-ups-shutdown
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Разложить обработчик событий upssched
+  ansible.builtin.template:
+    src: upssched-cmd.j2
+    dest: /usr/local/sbin/nekta-upssched-cmd
+    owner: root
+    group: nut
+    mode: "0750"
+
+- name: Создать рабочий каталог upssched
+  ansible.builtin.file:
+    path: /run/nut
+    state: directory
+    owner: nut
+    group: nut
+    mode: "0770"
+
+- name: Разложить upssched.conf
+  ansible.builtin.template:
+    src: upssched.conf.j2
+    dest: /etc/nut/upssched.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart nut monitor
+
+- name: Разложить upsmon.conf
+  ansible.builtin.template:
+    src: upsmon.conf.j2
+    dest: /etc/nut/upsmon.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  no_log: true
+  notify: Restart nut monitor
+
+- name: Включить службу мониторинга ИБП
+  ansible.builtin.systemd:
+    name: nut-monitor.service
+    enabled: true
+    state: started

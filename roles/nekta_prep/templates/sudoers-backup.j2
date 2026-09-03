@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# Права pull-агента резервного копирования: только чтение файлов через rsync
+# и запуск подготовки дампов. Интерактивный root недоступен.
+Cmnd_Alias NEKTA_BACKUP_RSYNC = /usr/bin/rsync --server --sender *
+Cmnd_Alias NEKTA_BACKUP_DUMP  = /usr/local/sbin/nekta-predump
+
+{{ nekta_backup_user }} ALL=(root) NOPASSWD: NEKTA_BACKUP_RSYNC, NEKTA_BACKUP_DUMP
+Defaults:{{ nekta_backup_user }} !requiretty

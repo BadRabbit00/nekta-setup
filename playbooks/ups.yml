@@ -1,0 +1,23 @@
+---
+# Настройка ИБП. Сначала сервер, к которому подключён USB-кабель, затем
+# клиенты: клиенту нужен уже работающий upsd, чтобы проверить связь.
+- name: Сервер, к которому подключён ИБП
+  hosts: all
+  become: true
+  gather_facts: true
+  serial: 1
+
+  pre_tasks:
+    - name: Определить адреса клиентов NUT
+      ansible.builtin.set_fact:
+        nut_client_networks: >-
+          {{ [site_internal_network] if site_internal_network is defined
+             else (groups['all'] | map('extract', hostvars, 'ansible_host')
+                   | select('string') | list) }}
+      when: nut_mode | default('none') == 'netserver'
+      tags: [always]
+
+  roles:
+    - role: nut
+      when: nut_mode | default('none') != 'none'
+      tags: [nut, ups]

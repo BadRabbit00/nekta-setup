@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Резервное копирование серверов Nekta
+Documentation=file:///etc/nekta/backup.conf
+After=network-online.target {{ backup_root | replace('/', '-') | regex_replace('^-', '') }}.mount
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nekta-backup
+TimeoutStartSec={{ backup_timeout }}
+{% if backup_ionice | bool %}
+# Копирование не должно мешать другим задачам сервера.
+Nice=10
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch
+{% endif %}
+
+# Скрипту нужен root: чтение через sudo-rsync и сохранение владельцев файлов.
+User=root
+PrivateTmp=true
+ProtectHome=false
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

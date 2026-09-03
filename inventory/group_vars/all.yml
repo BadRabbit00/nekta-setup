@@ -1,0 +1,84 @@
+---
+# ============================================================================
+#  Общие параметры площадки. Значения-примеры — замените на свои.
+# ============================================================================
+
+# Сеть, из которой разрешено административное подключение (SSH, NUT, мониторинг).
+site_management_networks:
+  - "192.0.2.0/24"
+
+# Внутренняя сеть, в которой находятся оба сервера (используется для правил
+# firewall между nekta и backup и для NUT).
+site_internal_network: "192.0.2.0/24"
+
+# IP-адреса технической поддержки Nekta (см. «Подготовка к установке»).
+# Используются для ограничения доступа к SSH и служебному порту 82/tcp.
+nekta_support_ips:
+  - "217.113.124.240"
+  - "84.201.166.187"
+
+# Внешние ресурсы, к которым серверу Nekta нужен исходящий доступ.
+nekta_outbound_endpoints:
+  - { host: "217.113.124.240", port: 443 }
+  - { host: "84.201.166.187", port: 8000 }
+  - { host: "docker.nekta.cloud", port: 443 }
+  - { host: "ppa.launchpad.net", port: 443 }
+  - { host: "archive.ubuntu.com", port: 80 }
+  - { host: "ru.archive.ubuntu.com", port: 80 }
+
+# --- Базовая настройка ОС -------------------------------------------------
+common_timezone: "Europe/Moscow"
+common_locales:
+  - "en_US.UTF-8"
+  - "ru_RU.UTF-8"
+common_default_locale: "en_US.UTF-8"
+
+common_ntp_servers:
+  - "0.ru.pool.ntp.org"
+  - "1.ru.pool.ntp.org"
+  - "2.ru.pool.ntp.org"
+  - "3.ru.pool.ntp.org"
+
+# Административные учётные записи, создаваемые Ansible.
+# Пароль задаётся хешем (mkpasswd --method=yescrypt) и хранится в vault.
+common_admin_users:
+  - name: "sysadm"
+    comment: "Site administrator"
+    groups: ["sudo", "adm", "systemd-journal"]
+    ssh_keys: []          # список публичных ключей
+    password: "!"         # "!" — вход по паролю запрещён, только по ключу
+
+# --- SSH ------------------------------------------------------------------
+common_ssh_port: 22
+common_ssh_permit_root_login: "prohibit-password"
+common_ssh_password_authentication: false
+common_ssh_allow_users: []      # пусто — ограничение AllowUsers не ставится
+common_ssh_allow_groups: ["sudo"]
+common_ssh_client_alive_interval: 300
+common_ssh_max_auth_tries: 4
+
+# --- Обновления -----------------------------------------------------------
+# Автоматические security-обновления. На сервере Nekta по умолчанию выключены:
+# стек обслуживает вендор, незапланированный рестарт служб недопустим.
+common_unattended_upgrades: true
+common_unattended_reboot: false
+
+# --- Почтовые уведомления (msmtp) ----------------------------------------
+# Используются для отчётов бэкапа, событий mdadm, smartd и NUT.
+common_mail_enabled: false
+common_mail_from: "nekta-{{ inventory_hostname }}@example.org"
+common_mail_to: "ops@example.org"
+common_mail_host: "smtp.example.org"
+common_mail_port: 587
+common_mail_tls: true
+common_mail_starttls: true
+common_mail_user: "nekta-alerts@example.org"
+common_mail_password: ""        # положите в vault: vault_common_mail_password
+
+# --- ИБП / NUT ------------------------------------------------------------
+# Роль хоста в NUT: netserver (кабель USB воткнут сюда) | netclient | none
+nut_mode: "netclient"
+nut_ups_name: "ups0"
+# Хост, к которому физически подключён ИБП (для netclient).
+nut_server_host: "{{ hostvars[groups['nekta'][0]].ansible_host | default(groups['nekta'][0]) }}"
+nut_listen_port: 3493

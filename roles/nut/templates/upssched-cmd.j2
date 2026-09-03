@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Обработчик отложенных событий ИБП (вызывается upssched).
+set -euo pipefail
+
+UPS="{{ nut_ups_name }}{% if nut_mode == 'netclient' %}@{{ nut_server_host }}{% else %}@localhost{% endif %}"
+HOSTNAME_SHORT="$(hostname -s)"
+
+log() { logger -t nekta-ups -- "$*"; }
+
+notify() {
+    local subject="$1" body="$2"
+    log "$subject"
+{% if nut_notify_mail_enabled | bool %}
+    printf 'Сервер: %s\nИБП: %s\n\n%s\n\nСостояние ИБП:\n%s\n' \
+        "$HOSTNAME_SHORT" "$UPS" "$body" "$(upsc "$UPS" 2>&1 || true)" \
+        | mail -s "[NEKTA][$HOSTNAME_SHORT] $subject" "{{ nut_notify_mail_to }}" || \
+        log "не удалось отправить письмо"
+{% endif %}
+}
+
+case "${1:-}" in
+    onbatt-warn)
+        notify "ИБП перешёл на батарею" \
+               "Питание отсутствует более {{ nut_on_battery_warn_delay }} с.{% if nut_on_battery_shutdown_delay | int > 0 %} Выключение через {{ nut_on_battery_shutdown_delay }} с от начала разряда.{% endif %}"
+        ;;
+    onbatt-shutdown)
+        notify "Выключение по разряду батареи" \
+               "Питание не восстановлено за {{ nut_on_battery_shutdown_delay }} с — запускается штатное выключение."
+{% if nut_mode in ['netserver', 'standalone'] %}
+        # primary объявляет FSD: клиенты выключаются первыми, затем мы.
+        /usr/sbin/upsmon -c fsd
+{% else %}
+        /usr/local/sbin/nekta-ups-shutdown
+{% endif %}
+        ;;
+    low-battery)
+        notify "Низкий заряд батареи ИБП" "Получен сигнал LB, начинается аварийное выключение."
+        ;;
+    forced-shutdown)
+        notify "Получена команда FSD" "Сервер выключается по команде управляющего узла NUT."
+        ;;
+    power-restored)
+        notify "Питание восстановлено" "ИБП вернулся в режим работы от сети."
+        ;;
+    commbad|no-communication)
+        notify "Нет связи с ИБП" "upsmon не получает данные от $UPS. Проверьте USB-кабель и службу nut-server."
+        ;;
+    replace-battery)
+        notify "Требуется замена батареи ИБП" "ИБП сообщил о неисправной батарее (RB)."
+        ;;
+    *)
+        log "неизвестное событие: ${1:-<пусто>}"
+        ;;
+esac

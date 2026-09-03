@@ -1,0 +1,32 @@
+---
+# Проверка соответствия железа и сети требованиям — без изменений на серверах.
+#
+#   ansible-playbook playbooks/preflight.yml
+#
+# Полезно запускать до закупки/приёмки оборудования и перед передачей
+# сервера в техподдержку Nekta.
+- name: Проверка сервера приложения
+  hosts: nekta
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Выполнить проверки профиля нагрузки
+      ansible.builtin.include_role:
+        name: nekta_prep
+        tasks_from: preflight.yml
+      vars:
+        nekta_preflight_strict: false
+
+- name: Проверка сервера резервного копирования
+  hosts: backup
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Выполнить проверки требований к серверу копий
+      ansible.builtin.include_role:
+        name: backup_server
+        tasks_from: preflight.yml
+      vars:
+        backup_preflight_strict: false

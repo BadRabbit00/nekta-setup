@@ -1,0 +1,33 @@
+// {{ ansible_managed }}
+{% if common_unattended_upgrades | bool %}
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+{% else %}
+// Обновления выполняются вручную/вендором: незапланированный рестарт
+// служб Nekta во время опроса приборов учёта недопустим.
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Unattended-Upgrade "0";
+{% endif %}
+
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}-security";
+    "${distro_id}ESMApps:${distro_codename}-apps-security";
+    "${distro_id}ESM:${distro_codename}-infra-security";
+};
+
+Unattended-Upgrade::Package-Blacklist {
+    "docker-ce";
+    "docker-ce-cli";
+    "containerd.io";
+    "docker-compose-plugin";
+};
+
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Automatic-Reboot "{{ 'true' if common_unattended_reboot | bool else 'false' }}";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ common_unattended_reboot_time }}";
+{% if common_mail_enabled | bool %}
+Unattended-Upgrade::Mail "{{ common_mail_to }}";
+Unattended-Upgrade::MailReport "on-change";
+{% endif %}
